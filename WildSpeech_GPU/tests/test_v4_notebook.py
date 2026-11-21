@@ -29,8 +29,18 @@ def test_notebook_uses_v4_pipeline_and_required_steps():
     for needle in ("drive.mount", "git -C", "pip install -q -e", "V4Pipeline", "pipe.prepare", "pipe.features",
                    "pipe.experiments", "pipe.figures", "pipe.submission", "pipe.report", "pinned_commit",
                    "permission_review", "12SzHSmkNbeoS_mO1L80uEd6A2k4jH-8V", "all_models_predictions.parquet",
-                   "'rerun_asr': False"):
+                   "'rerun_asr': False", "assert_complete", "REQUIRED_MODULES", "'ref': 'main'"):
         assert needle in src, needle
+    # the broken pre-repair commit (missing src/wildspeech/models) must never be pinned again
+    assert "17222a0cc700146a62b675fcb2649c0963133c45" not in src
+
+
+def test_source_check_runs_before_install_and_training():
+    code = ["".join(c["source"]) for c in _cells() if c["cell_type"] == "code"]
+    first_check = next(i for i, s in enumerate(code) if "assert_complete" in s)
+    install = next(i for i, s in enumerate(code) if "pip install -q -e" in s)
+    pipeline = next(i for i, s in enumerate(code) if "V4Pipeline(" in s)
+    assert first_check <= install < pipeline
 
 
 def test_config_keys_match_package_defaults():

@@ -91,3 +91,17 @@ cache/            V4 caches (acoustic features, external ASR store, fold provide
   fold and labelled `BASELINE_FALLBACK`; they are never reported as improvements and never become the champion.
 * `school_id` / `score_status` are train-only and never features; the submission checks the design for them.
 * External ASR predictions keep provenance `external_colab_asr` + source SHA-256 and are never relabelled as P24.
+
+## 6. Packaging incident and guard (src/wildspeech/models)
+
+Commit `17222a0` lacked the whole `src/wildspeech/models/` package: the unanchored `models/` rule in
+`WildSpeech_GPU/.gitignore` (meant for the model-weights folder) also matched the source package, so Colab failed with
+`ModuleNotFoundError: No module named 'wildspeech.models'`. Repairs:
+
+* artefact patterns are anchored to the project root (`/models/`, `/cache/`, `/outputs/`, ...) and `src/`, `tests/`,
+  `configs/`, `scripts/`, `notebooks/`, `docs/` are explicitly re-included (bytecode excluded);
+* the package is restored unchanged from the local implementation;
+* `wildspeech.v4.source_check` (stdlib only) parses every module and verifies that every imported `wildspeech`
+  module exists; notebook cell 3 runs it right after the clone, cell 4 imports the training modules before any step;
+* the notebook follows `main` (no pin to the broken commit); `tests/test_v4_source_completeness.py` guards the
+  ignore rules and the checkout.

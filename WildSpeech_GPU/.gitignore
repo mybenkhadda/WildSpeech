@@ -1,13 +1,34 @@
+# Python byproducts
 __pycache__/
 *.pyc
 .pytest_cache/
 .ipynb_checkpoints/
-cache/
-outputs/
-models/
-experiments/
-submissions/
-reports/
-data/raw/
+
+# Run artefacts — ANCHORED to the project root (leading "/").
+# Unanchored patterns such as `models/` also matched the source package src/wildspeech/models/ and silently
+# removed it from the repository. Never add an unanchored directory name here.
+/cache/
+/outputs/
+/models/
+/experiments/
+/submissions/
+/reports/
+/data/raw/
+
+# Large binary artefacts (never source)
 *.joblib
 *.parquet
+
+# Safety net: everything under src/, tests/, configs/, scripts/, notebooks/ and docs/ is source and stays tracked
+# even if a broader pattern is added above (works because the parent directories themselves are not ignored).
+!/src/**
+!/tests/**
+!/configs/**
+!/scripts/**
+!/notebooks/**
+!/docs/**
+# ...but never bytecode inside them
+/src/**/__pycache__/
+/src/**/*.pyc
+/tests/**/__pycache__/
+/scripts/**/__pycache__/
