@@ -1,0 +1,7 @@
+split,task,clips,students,items,accuracy,median_dur
+test,blending,4313,347,64,0.518931475029036,2.98
+test,deletion,1702,215,70,0.4223529411764706,3.82
+test,sentence_repetition,3799,343,43,0.4278554471115801,6.8
+train,blending,6195,521,64,0.5424666449723398,2.94
+train,deletion,2766,334,71,0.4370477568740955,3.96
+train,sentence_repetition,5743,515,43,0.4522270742358079,6.66

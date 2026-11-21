@@ -1,0 +1,152 @@
+# Execution profiles. Each profile = a list of default stages + config overrides (deep-merged).
+# Stages not listed can still be requested explicitly (dependencies are resolved automatically).
+
+SMOKE:
+  description: "Technical verification on a tiny deterministic subsample (minutes)."
+  stages: [P00, P01, P02, P05, P10, P13, P15]
+  overrides:
+    data: {max_students: 40, max_test_students: 20}
+    audio: {max_clips: 400, checkpoint_every: 100, enable_pitch: true, enable_wavelet: true}
+    gpu: {benchmark_batch_sizes: [8, 16], benchmark_clips: 32, parity_clips: 8}
+    validation: {n_splits: 3, n_repeats: 1, bootstrap: 100, schemes: [repeated_kfold]}
+    models: {benchmark_models: [RIDGE, LIGHTGBM], benchmark_families: [[SCREENING], [ALL]], ablation_max_evals: 6}
+    analysis: {bootstrap: 100, permutations: 100, cluster_bootstrap: 5, perturbation_clips: 24, discovery_repeats: 3}
+    features: {crossfit_folds: 3}
+
+FAST:
+  description: "Complete tabular analysis + inexpensive GPU acoustic families + baseline modelling."
+  stages: [P00, P01, P02, P05, P06, P07, P09, P10, P12, P13, P15]
+  overrides:
+    audio: {enable_pitch: false, enable_wavelet: false}
+    validation: {n_repeats: 2, bootstrap: 500}
+    analysis: {bootstrap: 500, permutations: 500, cluster_bootstrap: 20}
+
+FULL:
+  description: "Extended scientific EDA: pitch + wavelet families, robustness, full ablations."
+  stages: [P00, P01, P02, P05, P06, P07, P08, P09, P10, P11, P12, P13, P15]
+  overrides:
+    audio: {enable_pitch: true, enable_wavelet: true}
+    validation: {n_repeats: 3, schemes: [repeated_kfold, school_kfold, loso]}
+
+RESEARCH:
+  description: "Adds local ASR/alignment, foundation-model embeddings and neural multimodal learning."
+  stages: [P00, P01, P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P15]
+  overrides:
+    audio: {enable_pitch: true, enable_wavelet: true}
+    phonetic: {enabled: true}
+    embeddings: {enabled: true}
+    multimodal: {neural_enabled: true}
+    validation: {n_repeats: 3, schemes: [repeated_kfold, school_kfold, loso]}
+
+RESUME:
+  description: "Re-load the last run configuration and continue; completed stages with matching fingerprints are skipped."
+  stages: null               # null = the stage list of the last run
+  overrides:
+    runtime: {resume: true}
+
+SUBMISSION:
+  description: "Final independent test inference with the frozen champion (P13) and submission validation."
+  stages: [P14]
+  overrides:
+    audio: {extract_test: true}
+    submission: {enabled: true}
+    runtime: {resume: true}
+
+# ------------------------------------------------------------------------------------------------ V2 (P16-P22)
+# V2 profiles override ONLY the `v2` section (never data/audio/validation/models), so running them can never
+# recompute or overwrite the completed P00-P15 artefacts: those stages stay `cached`.
+V2_SMOKE:
+  description: "V2 technical verification: first repeat only, few clips per extraction, small grids."
+  stages: [P16, P17, P19, P21, P22]
+  overrides:
+    v2:
+      validation: {max_repeats: 1, schemes: [repeated_kfold, sample_rate_transfer, sample_rate_equal_n], equal_n_repeats: 2}
+      evaluation: {student_schemes: [repeated_kfold], bootstrap: 100, max_evals: 40}
+      harmonization: {active_variants: [orig, bw4k], max_clips: 600, perturbation_clips: 24,
+                      perturbations: [noise_20db, lowpass_4k]}
+      correctness: {feature_sets: [META, TEMPORAL, HARMONIZED, COMBINED], models: [LOGISTIC, LIGHTGBM],
+                    crossfit_feature_sets: [META, COMBINED], crossfit_schemes: [repeated_kfold], bootstrap: 100}
+      reference: {max_clips: 600, exemplars_per_item: 2}
+      multimodal: {budgets: [5, 20], models: [RIDGE, LIGHTGBM], fusions: [early, residual, late], pairwise: false}
+      failure: {bootstrap: 100}
+
+V2_CORE:
+  description: "Harmonization, correctness intelligence, reference modelling, compact regression, failure recovery."
+  stages: [P16, P17, P19, P21, P22]
+  overrides:
+    v2: {phonetic: {enabled: false}, foundation: {enabled: false}}
+
+V2_PHONETIC:
+  description: "V2_CORE + local ASR / CTC phoneme recognition / forced alignment (verified models only)."
+  stages: [P16, P18, P17, P19, P21, P22]
+  overrides:
+    v2: {phonetic: {enabled: true}, foundation: {enabled: false}}
+
+V2_FOUNDATION:
+  description: "V2_CORE + frozen foundation-model layer discovery (verified models only)."
+  stages: [P16, P20, P17, P19, P21, P22]
+  overrides:
+    v2: {phonetic: {enabled: false}, foundation: {enabled: true}}
+
+V2_FULL:
+  description: "Every V2 stage: harmonization, phonetics, foundation models, correctness, reference, fusion, recovery."
+  stages: [P16, P18, P20, P17, P19, P21, P22]
+  overrides:
+    v2: {phonetic: {enabled: true}, foundation: {enabled: true}}
+
+V2_SUBMISSION:
+  description: "Re-load the V2 champion configuration and generate validated candidate submissions (P22 only)."
+  stages: [P22]
+  overrides:
+    v2: {submission: {enabled: true}}
+    runtime: {resume: true}
+
+# ------------------------------------------------------------------------------------------------ V3 (P23-P29)
+# V3 profiles first apply the overrides of `base_profile` (V2_FULL: the configuration the V2 stages were run
+# with), so every completed V1/V2 stage keeps its fingerprint and stays `cached`. They then override ONLY `v3`.
+V3_SMOKE:
+  description: "V3 technical verification: first repeat, few clips per ASR model, small grids."
+  base_profile: V2_FULL
+  stages: [P23, P24, P25, P26, P27, P28, P29]
+  overrides:
+    v3:
+      runtime: {max_repeats: 1}       # V3-side repeat limit (never touches v2.* so V2 fingerprints stay valid)
+      audit: {reaudit_specs: [P21_SINGLE_SOFT, P21_ALL_RESIDUAL_RIDGE], bootstrap: 100}
+      asr: {enabled: true, max_clips: 200}
+      discovery: {n_perm: 200, bootstrap: 100}
+      representations: {budgets: [5, 20], methods: [select, pca], mil: {enabled: false}}
+      ablation: {schemes: [repeated_kfold], models: [RIDGE, GAM], fusions: [early, residual], bootstrap: 100, max_evals: 40}
+
+V3_AUDIT:
+  description: "P23 only: audit of the V2 fusion system (zero-ΔR² diagnosis, fallback tracing, task-ensemble repair)."
+  base_profile: V2_FULL
+  stages: [P23]
+  overrides: {}
+
+V3_ASR:
+  description: "P24 + P25: eligible local ASR inference (resumable) and label-free phonetic feature engineering."
+  base_profile: V2_FULL
+  stages: [P24, P25]
+  overrides:
+    v3: {asr: {enabled: true}}
+
+V3_SCIENCE:
+  description: "P26 + P27 + P28: correct-response intelligence, ASR disagreement and compact representations."
+  base_profile: V2_FULL
+  stages: [P26, P27, P28]
+  overrides:
+    v3: {asr: {enabled: true}}
+
+V3_FULL:
+  description: "Every V3 stage P23-P29."
+  base_profile: V2_FULL
+  stages: [P23, P24, P25, P26, P27, P28, P29]
+  overrides:
+    v3: {asr: {enabled: true}}
+
+V3_SUBMISSION:
+  description: "P24/P25 on the test split for the eligible models, then the P29 champion submission."
+  base_profile: V2_FULL
+  stages: [P24, P25, P29]
+  overrides:
+    v3: {asr: {enabled: true, splits: [train, test]}, ablation: {submission: {enabled: true}}}

@@ -1,0 +1,529 @@
+# WildSpeech V3 — evidence-backed local speech-model registry (P24), schema 3.
+#
+# FACTS ONLY. This file records what the official sources say about each model: card URL, pinned commit,
+# exact file manifest (size + LFS sha256), license, training data, architecture, and the restrictions that
+# are still open. It contains NO approval switches. Approvals live only in configs/v3_asr_reviews.yaml and are
+# written by a human with `python -m wildspeech.asr.reviews record|accept-proposal ...`.
+# configs/v3_asr_review_proposals.yaml holds DRAFT review records assembled from the evidence below; a
+# proposal never approves anything until a named reviewer accepts it.
+#
+# Evidence retrieved 2026-11-21 from the Hugging Face API (https://huggingface.co/api/models/<id>?blobs=true),
+# the model cards / READMEs, the competition pages and the license pages listed per model. Revisions are the
+# `main` commit at retrieval time. Every value marked `verbatim` was copied from the source.
+#
+# Eligibility is computed in 13 independent dimensions (wildspeech.asr.eligibility):
+#   registry_validity · license_documentation · license_approval · training_provenance · overlap_assessment ·
+#   competition_permission · checkpoint_availability · checkpoint_files · architecture_compatibility ·
+#   processor_compatibility · framework_dependencies · gpu_readiness · inference_readiness
+# and summarised as one lifecycle status:
+#   LEGAL_REVIEW_PENDING | PROVENANCE_REVIEW_PENDING | READY_FOR_DOWNLOAD | DOWNLOADING | CHECKPOINT_INCOMPLETE |
+#   FRAMEWORK_INCOMPATIBLE | READY_FOR_INFERENCE | INFERENCE_RUNNING | INFERENCE_COMPLETE | INELIGIBLE | FAILED
+
+schema_version: 3
+
+# Checkpoints are installed to <repo>/<checkpoint_root>/<local_dir> (git-ignored), unless a complete snapshot at the
+# pinned revision already exists in the Hugging Face cache, which is then used in place (never duplicated).
+checkpoint_root: models
+
+license_policy:
+  rule: >-
+    Competition rule (verbatim, problem description): "External data and pretrained models, including pretrained
+    speech models such as wav2vec2, Whisper, and the Pasketti children's speech models, are allowed if they are
+    freely and publicly available to all participants under a permissive open license that does not prohibit
+    commercial use, such as CC0 or CC-BY."
+  source_url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+  # permissive: a license approval needs only the standard evidence
+  permissive: [apache-2.0, mit, bsd-2-clause, bsd-3-clause, cc0-1.0, cc-by-4.0]
+  # conditional: allowed only if the reviewer explicitly acknowledges every condition id (--acknowledge ...)
+  conditional:
+    bigcode-openrail-m:
+      class: openrail_use_restricted
+      license_url: https://www.bigcode-project.org/docs/pages/bigcode-openrail/
+      conditions:
+        - id: OPENRAIL-USE-RESTRICTIONS
+          text: >-
+            Attachment A use-based restrictions apply to the model and every derivative (e.g. no use that violates
+            applicable law, no deceptive impersonation, no automated decisions adversely affecting legal rights).
+            Commercial use and redistribution are permitted subject to these restrictions.
+        - id: OPENRAIL-NOT-OSI
+          text: >-
+            BigCode states (verbatim) "This is not an open source license according to the Open Source Initiative
+            definition". The competition requires a "permissive open license that does not prohibit commercial use"
+            and separately names the Pasketti models as allowed examples. The reviewer must judge that the
+            organisers' explicit naming covers this license (or obtain a forum / email ruling and cite it).
+        - id: PASKETTI-OUT-OF-SCOPE
+          text: >-
+            The Pasketti cards list as out of scope "Fully automated high-stakes decisions, such as diagnosis or
+            educational placement, without review by a qualified educator or clinician" and surveillance /
+            profiling of children. Competition research use (aggregate reading-score modelling, no placement
+            decisions) must stay within the stated intended use.
+    cc-by-sa-3.0:
+      class: share_alike
+      license_url: https://creativecommons.org/licenses/by-sa/3.0/
+      conditions:
+        - id: CC-BY-SA-SHAREALIKE
+          text: >-
+            Attribution + ShareAlike: adaptations of the licensed material must carry the same license. Commercial
+            use is permitted. The reviewer must judge whether ShareAlike is compatible with the competition's
+            "permissive open license" requirement and the MIT release of winning solutions.
+        - id: WAVLM-LICENSE-AMBIGUOUS
+          text: >-
+            The microsoft/wavlm-base-plus card has NO license metadata; its README links the UniSpeech repository
+            LICENSE (CC BY-SA 3.0), while the WavLM code in microsoft/unilm is MIT. No statement covers the
+            checkpoint weights specifically. Record which document governs the weights.
+  prohibited: [cc-by-nc-4.0, cc-by-nc-sa-4.0, cc-by-nc-nd-4.0, cc-by-nc-3.0, cc-by-nc-sa-3.0, cc-by-nd-4.0,
+               openrail-nc, other-research-only, llama2, gpl-3.0-only-weights]
+
+# Back-compat list (schema-2 callers): permissive + conditional.
+allowed_licenses: [apache-2.0, mit, bsd-2-clause, bsd-3-clause, cc0-1.0, cc-by-4.0, bigcode-openrail-m, cc-by-sa-3.0]
+
+competition_policy:
+  competition: "Where the Wild Features Are (Literacy Speech Modeling), K-12 AI Infrastructure platform, hosted by DrivenData"
+  statement: >-
+    "External data and pretrained models, including pretrained speech models such as wav2vec2, Whisper, and the
+    Pasketti children's speech models, are allowed if they are freely and publicly available to all participants
+    under a permissive open license that does not prohibit commercial use, such as CC0 or CC-BY."
+  recorded_by: "official competition pages, retrieved 2026-11-21"
+  source_url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+  rules_url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/rules/
+  retrieved: "2026-11-21"
+  # families the organisers NAME as allowed examples (still conditional on the license)
+  named_families: [whisper, wav2vec2, pasketti]
+  # families allowed only through the general open-external-data rule (license must be permissive and approved)
+  general_rule_families: [hubert, wavlm]
+  permitted_families: [whisper, wav2vec2, pasketti, hubert, wavlm]
+  data_source: >-
+    Rules/about pages: "The data come from the Reach Every Reader literacy screener, collected by MIT and Florida
+    State University." Public clips were denoised with FRCRN and voice-converted with FreeVC24 (about page). The
+    challenge "builds on Goodnight Moon, Hello Early Literacy Screening ... with the same research team".
+  conditions:
+    - "You may not upload competition data to any third-party services or APIs that retain the data (rules); all inference here is local."
+    - "Test data may not be used to train models, including through pseudo-labeling (rules)."
+    - "school_id: your model cannot use school as an input at prediction time (problem description)."
+    - "Software required by a winning solution must be under an open source license that does not prohibit free commercial use."
+    - "Permission is per checkpoint: each model still needs its own license, provenance and overlap review."
+
+models:
+  # ============================================================================ child phonetic (priority 1)
+  pasketti_phonetic:
+    family: pasketti
+    priority: 1
+    role: child_phonetic
+    adapter: pasketti_phonetic
+    output: phones
+    child_speech: true
+    hf_id: drivendata/pasketti-phonetic
+    hf_id_status: verified_public          # repo exists, public, not gated (HF API 2026-11-21)
+    revision: 675dfe392a2af7050f1374eeab4458cb1f003b3e
+    revision_date: "2026-10-23T23:45:14Z"
+    local_dir: pasketti_phonetic
+    expected_architectures: [hf_ctc]
+    expected_model_type: wavlm
+    expected_class: WavLMForCTC
+    expected_params_millions: 315
+    precision: fp32                        # card: load in fp32; WavLM relative position bias can NaN in fp16/bf16
+    sample_rate: 16000
+    max_clip_seconds: 30                   # card: trained on clips of at most 30 s (longer audio is chunked)
+    phone_inventory: ipa_characters        # 55-character IPA alphabet, one CTC token per character
+    files:
+      - {name: config.json, size: 2396, role: config}
+      - {name: preprocessor_config.json, size: 256, role: processor}
+      - {name: vocab.json, size: 634, role: tokenizer}
+      - {name: tokenizer_config.json, size: 794, role: tokenizer}
+      - {name: special_tokens_map.json, size: 53, role: tokenizer}
+      - {name: added_tokens.json, size: 18, role: tokenizer}
+      - {name: model.safetensors, size: 1262097724, role: weights,
+         sha256: 5b3eb5a1b7e03e25dc816ae891f18eeffa239d715a5868010b07973a077b5134}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/drivendata/pasketti-phonetic
+      api_url: https://huggingface.co/api/models/drivendata/pasketti-phonetic
+      collection_url: https://huggingface.co/collections/drivendata/pasketti
+      announcement_url: https://blog.drivendata.org/blog/on-top-of-pasketti-winners
+      license_id: bigcode-openrail-m
+      license_url: https://www.bigcode-project.org/docs/pages/bigcode-openrail/
+      license_evidence: "cardData.license = bigcode-openrail-m; tag license:bigcode-openrail-m (HF API at 675dfe3)."
+      training_sources:
+        - "116 h of phonetically transcribed child speech, ~1,700 children (card)"
+        - "Phonetic training corpora (card): Arizona Child Acoustic Database Repository, Cameron, Edmonton Narrative Norms Instrument, Ellis Weismer Corpus, PERCEPT-GFTA, PERCEPT-R, ReadNet, SPROUT"
+        - "371 h of orthographically transcribed child speech for a secondary word head (not used at inference)"
+        - "Base model microsoft/wavlm-large (Libri-Light, GigaSpeech, VoxPopuli pretraining)"
+        - "Final release 'retrained on broader data, including sensitive data representing realistic education populations' (winners blog)"
+      training_evidence_url: https://huggingface.co/drivendata/pasketti-phonetic
+      enumerated_corpora: true
+      architecture_evidence: "config.architectures = [WavLMForCTC], model_type = wavlm; card: 'a standard transformers WavLMForCTC'; no auto_map (no remote code)."
+      output_format: "IPA characters (CTC); greedy decoding as evaluated on the card; mapped to ARPAbet for features, raw IPA kept"
+      reported_metrics: "PER 33% overall on 44 h / 737 held-out children (card)"
+      notes: "Card pins transformers==4.57.6 (matches MITSUI). torch 2.6 on the card; safetensors weights load on torch 2.5.1."
+    restrictions:
+      - id: PSK-PH-LICENSE
+        check: license
+        blocking: true
+        text: >-
+          bigcode-openrail-m is a conditional license (use restrictions, not OSI). Approve only with every condition
+          of license_policy.conditional.bigcode-openrail-m acknowledged.
+      - id: PSK-PH-READNET-OVERLAP
+        check: overlap
+        blocking: true
+        text: >-
+          The card names "ReadNet" among the phonetic training corpora. This competition's audio comes from the Reach
+          Every Reader literacy screener (MIT/FSU), and the On Top of Pasketti Phonetic Track rules listed the
+          "Reach Every Reader (RER) ReadNet Dataset" as prohibited external data, i.e. ReadNet is RER data. Raw,
+          non-anonymised recordings of the same children and items may therefore be in the training set. This is NOT
+          resolvable by "no known overlap". The reviewer must either reject, or approve with basis
+          acknowledged_overlap_permitted (the organisers name Pasketti explicitly) and record the mitigation (report
+          Pasketti-derived results separately; never treat its accuracy on this data as out-of-sample).
+
+  # ============================================================================ general word (priority 2)
+  whisper_small_en:
+    family: whisper
+    priority: 2
+    role: general_word
+    adapter: whisper
+    output: words
+    child_speech: false
+    hf_id: openai/whisper-small.en
+    hf_id_status: verified_public
+    revision: e8727524f962ee844a7319d92be39ac1bd25655a
+    revision_date: "2024-01-22T17:55:26Z"
+    local_dir: whisper_small_en
+    expected_architectures: [hf_whisper]
+    expected_model_type: whisper
+    expected_class: WhisperForConditionalGeneration
+    expected_params_millions: 242
+    precision: auto
+    sample_rate: 16000
+    files:
+      - {name: config.json, size: 1943, role: config}
+      - {name: generation_config.json, size: 1931, role: config}
+      - {name: preprocessor_config.json, size: 184990, role: processor}
+      - {name: tokenizer.json, size: 2405679, role: tokenizer}
+      - {name: tokenizer_config.json, size: 805, role: tokenizer}
+      - {name: vocab.json, size: 798156, role: tokenizer}
+      - {name: merges.txt, size: 456318, role: tokenizer}
+      - {name: added_tokens.json, size: 34604, role: tokenizer}
+      - {name: special_tokens_map.json, size: 1830, role: tokenizer}
+      - {name: normalizer.json, size: 52666, role: tokenizer}
+      - {name: model.safetensors, size: 966992008, role: weights,
+         sha256: 6014ac49b506df900f66f4aca6b0801eed7245594ace97bcaf73e0ae5b863066}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/openai/whisper-small.en
+      api_url: https://huggingface.co/api/models/openai/whisper-small.en
+      paper_url: https://arxiv.org/abs/2212.04356
+      license_id: apache-2.0
+      license_url: https://huggingface.co/openai/whisper-small.en
+      license_evidence: "cardData.license = apache-2.0; tag license:apache-2.0 (HF API at e872752)."
+      training_sources:
+        - "680,000 hours of audio and transcripts collected from the internet (card, verbatim); English portion for .en"
+      training_evidence_url: https://arxiv.org/abs/2212.04356
+      enumerated_corpora: false
+      release_date: "2022-09-26"
+      architecture_evidence: "config.architectures = [WhisperForConditionalGeneration]; no auto_map."
+      output_format: "English words (BPE) with real token log-probabilities"
+      notes: "Card: hallucination/repetition risk; 'We recommend against use in high-risk domains like decision-making contexts.'"
+    restrictions:
+      - id: WSP-OVERLAP
+        check: overlap
+        blocking: true
+        text: >-
+          The web training set is not enumerated, so overlap cannot be ruled out by listing corpora. A positive basis
+          is required (e.g. temporal_precedence: checkpoint created 2022-09-26; the competition's recordings are
+          private research data whose public, voice-converted versions were released 2026-11-19).
+
+  # ============================================================================ child word (priority 3)
+  pasketti_word:
+    family: pasketti
+    priority: 3
+    role: child_word
+    adapter: pasketti_word
+    output: words
+    child_speech: true
+    hf_id: drivendata/pasketti-word
+    hf_id_status: verified_public
+    revision: 7756647568342982e5f9777f1c34fdcd5fa59866
+    revision_date: "2026-10-23T23:45:09Z"
+    local_dir: pasketti_word
+    expected_architectures: [qwen3_asr]
+    expected_model_type: qwen3_asr
+    expected_class: Qwen3ASRForConditionalGeneration
+    expected_params_millions: 2000
+    precision: bf16
+    sample_rate: 16000
+    runtime_backend: qwen_asr_vllm         # card: `pip install transformers` alone cannot load this model
+    runtime_requirements:
+      packages: ["qwen_asr==0.0.6", "vllm==0.14.0"]
+      card_verified_stack: "qwen_asr[vllm]==0.0.6, vllm==0.14.0, transformers==4.57.6, torch==2.9.1, Python 3.13"
+      supported_platforms: [linux]         # vLLM has no native Windows support -> WSL2 / Linux
+      transformers_backend_supported: false  # card: Qwen3ASRModel.from_pretrained() backend "not supported"
+    files:
+      - {name: config.json, size: 6194, role: config}
+      - {name: generation_config.json, size: 142, role: config}
+      - {name: preprocessor_config.json, size: 330, role: processor}
+      - {name: chat_template.json, size: 1161, role: processor}
+      - {name: tokenizer.json, size: 11429377, role: tokenizer,
+         sha256: bd2a97b55c8f7f9c328c73ee9b9178771037e9f566dfca8e238a063d41cbac92}
+      - {name: tokenizer_config.json, size: 12487, role: tokenizer}
+      - {name: vocab.json, size: 2776833, role: tokenizer}
+      - {name: merges.txt, size: 1671853, role: tokenizer}
+      - {name: added_tokens.json, size: 1566, role: tokenizer}
+      - {name: special_tokens_map.json, size: 1008, role: tokenizer}
+      - {name: model.safetensors, size: 4076191640, role: weights,
+         sha256: bac33fa4c0c05a454da68491b64e8815534d67a500fba3d8e8efeb9cc47ac763}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/drivendata/pasketti-word
+      api_url: https://huggingface.co/api/models/drivendata/pasketti-word
+      collection_url: https://huggingface.co/collections/drivendata/pasketti
+      announcement_url: https://blog.drivendata.org/blog/on-top-of-pasketti-winners
+      license_id: bigcode-openrail-m
+      license_url: https://www.bigcode-project.org/docs/pages/bigcode-openrail/
+      license_evidence: "cardData.license = bigcode-openrail-m; tag license:bigcode-openrail-m (HF API at 7756647)."
+      training_sources:
+        - "372 h of child speech from >3,600 children, 12 source corpora (card)"
+        - "Named corpora (card): Arizona Child Acoustic Database Repository, Cameron, Edmonton Narrative Norms Instrument, Ellis Weismer Corpus, JIBO Kids, My Science Tutor, Ohio Child Speech Corpus, PERCEPT-GFTA, PERCEPT-R, ReadNet, SPROUT, plus an unnamed in-classroom corpus"
+        - "Base model Qwen/Qwen3-ASR-1.7B (all weights updated during fine-tuning)"
+      training_evidence_url: https://huggingface.co/drivendata/pasketti-word
+      enumerated_corpora: partial           # one corpus is unnamed ("Other" in-classroom)
+      architecture_evidence: "config.architectures = [Qwen3ASRForConditionalGeneration], model_type = qwen3_asr; card: Qwen3ASRModel.LLM(...) via qwen_asr + vLLM."
+      output_format: "orthographic words; no token probabilities exposed by the qwen_asr transcribe API"
+      reported_metrics: "WER 17% overall on 148 h / >2,300 held-out children (card)"
+    restrictions:
+      - id: PSK-WD-LICENSE
+        check: license
+        blocking: true
+        text: "bigcode-openrail-m: conditional license; acknowledge every condition."
+      - id: PSK-WD-READNET-OVERLAP
+        check: overlap
+        blocking: true
+        text: >-
+          Same as PSK-PH-READNET-OVERLAP: "ReadNet" (Reach Every Reader data) is a named training corpus and one
+          in-classroom corpus is unnamed. Reject, or approve with basis acknowledged_overlap_permitted plus mitigation.
+
+  # ============================================================================ general phonetic (priority 4)
+  wav2vec2_phoneme_espeak:
+    family: wav2vec2
+    priority: 4
+    role: general_phonetic
+    adapter: ctc
+    output: phones
+    child_speech: false
+    hf_id: facebook/wav2vec2-lv-60-espeak-cv-ft
+    hf_id_status: verified_public
+    revision: ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4
+    revision_date: "2023-10-31T13:13:45Z"
+    local_dir: wav2vec2_phoneme
+    expected_architectures: [hf_ctc]
+    expected_model_type: wav2vec2
+    expected_class: Wav2Vec2ForCTC
+    expected_params_millions: 315
+    precision: fp32
+    sample_rate: 16000
+    phone_inventory: espeak_ipa_tokens      # multi-character IPA tokens (Wav2Vec2PhonemeCTCTokenizer)
+    files:
+      - {name: config.json, size: 1856, role: config}
+      - {name: preprocessor_config.json, size: 212, role: processor}
+      - {name: vocab.json, size: 4637, role: tokenizer}
+      - {name: tokenizer_config.json, size: 321, role: tokenizer}
+      - {name: special_tokens_map.json, size: 85, role: tokenizer}
+      - {name: pytorch_model.bin, size: 1263535127, role: weights,
+         sha256: 3173bde9e9ce490fa0f989e413c42f25bc1820c020adc1e6b9b87025b3cfcc5e}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft
+      api_url: https://huggingface.co/api/models/facebook/wav2vec2-lv-60-espeak-cv-ft
+      paper_url: https://arxiv.org/abs/2109.11680
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft
+      license_evidence: "cardData.license = apache-2.0; tag license:apache-2.0 (HF API at ae45363)."
+      training_sources:
+        - "Pretrained wav2vec2-large-lv60 (Libri-Light, ~60k h of public-domain English audiobooks)"
+        - "Fine-tuned on Common Voice (cardData.datasets = [common_voice]) with eSpeak phonetic labels"
+      training_evidence_url: https://arxiv.org/abs/2109.11680
+      enumerated_corpora: true
+      release_date: "2022-03-02"
+      architecture_evidence: "config.architectures = [Wav2Vec2ForCTC]; no auto_map."
+      output_format: "eSpeak IPA phone tokens (used with do_phonemize=False)"
+      notes: "Only pytorch_model.bin is published: transformers 4.57 refuses torch.load on torch < 2.6, so the manager converts the sha256-verified .bin to safetensors locally (see v3.asr.downloads)."
+    restrictions: []
+
+  # ============================================================================ general chars (priority 5)
+  wav2vec2_base_960h:
+    family: wav2vec2
+    priority: 5
+    role: general_char
+    adapter: ctc
+    output: chars
+    child_speech: false
+    hf_id: facebook/wav2vec2-base-960h
+    hf_id_status: verified_public
+    revision: 22aad52d435eb6dbaf354bdad9b0da84ce7d6156
+    revision_date: "2022-11-14T21:37:23Z"
+    local_dir: wav2vec2_base_960h
+    expected_architectures: [hf_ctc]
+    expected_model_type: wav2vec2
+    expected_class: Wav2Vec2ForCTC
+    expected_params_millions: 95
+    precision: auto
+    sample_rate: 16000
+    files:
+      - {name: config.json, size: 1596, role: config}
+      - {name: preprocessor_config.json, size: 159, role: processor}
+      - {name: vocab.json, size: 291, role: tokenizer}
+      - {name: tokenizer_config.json, size: 163, role: tokenizer}
+      - {name: special_tokens_map.json, size: 85, role: tokenizer}
+      - {name: model.safetensors, size: 377607901, role: weights,
+         sha256: 8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/facebook/wav2vec2-base-960h
+      api_url: https://huggingface.co/api/models/facebook/wav2vec2-base-960h
+      paper_url: https://arxiv.org/abs/2006.11477
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/wav2vec2-base-960h
+      license_evidence: "cardData.license = apache-2.0; tag license:apache-2.0 (HF API at 22aad52)."
+      training_sources:
+        - "Pretrained and fine-tuned on 960 hours of LibriSpeech, 16 kHz (card, verbatim)"
+      training_evidence_url: https://arxiv.org/abs/2006.11477
+      enumerated_corpora: true
+      release_date: "2022-03-02"
+      architecture_evidence: "config.architectures = [Wav2Vec2ForCTC]; no auto_map."
+      output_format: "upper-case characters with '|' word delimiter"
+      reported_metrics: "WER 3.4 / 8.6 on LibriSpeech test-clean / test-other (card)"
+      notes: "model.safetensors already present in the local Hugging Face cache at this revision (2026-11-21)."
+    restrictions: []
+
+  # ============================================================================ frozen encoders (priority 6-8)
+  wav2vec2_base:
+    family: wav2vec2
+    priority: 6
+    role: frozen_encoder
+    adapter: encoder
+    output: embeddings
+    child_speech: false
+    hf_id: facebook/wav2vec2-base
+    hf_id_status: verified_public
+    revision: 0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8
+    revision_date: "2021-12-28T12:44:31Z"
+    local_dir: wav2vec2_base
+    expected_architectures: [hf_encoder]
+    expected_model_type: wav2vec2
+    expected_class: Wav2Vec2ForPreTraining   # loaded as Wav2Vec2Model (encoder only; quantizer heads dropped)
+    expected_params_millions: 95
+    precision: auto
+    sample_rate: 16000
+    encoder_layers: [6, 12]
+    files:
+      - {name: config.json, size: 1842, role: config}
+      - {name: preprocessor_config.json, size: 159, role: processor}
+      - {name: pytorch_model.bin, size: 380267417, role: weights,
+         sha256: 3249fe98bfc62fcbc26067f724716a6ec49d12c4728a2af1df659013905dff21}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/facebook/wav2vec2-base
+      api_url: https://huggingface.co/api/models/facebook/wav2vec2-base
+      paper_url: https://arxiv.org/abs/2006.11477
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/wav2vec2-base
+      license_evidence: "cardData.license = apache-2.0; tag license:apache-2.0 (HF API at 0b5b8e8)."
+      training_sources:
+        - "Self-supervised pretraining on 16 kHz audio; cardData.datasets = [librispeech_asr] (LibriSpeech 960 h per the wav2vec 2.0 paper, BASE model)"
+      training_evidence_url: https://arxiv.org/abs/2006.11477
+      enumerated_corpora: true
+      release_date: "2022-03-02"
+      architecture_evidence: "config.architectures = [Wav2Vec2ForPreTraining]; no tokenizer ('pretrained on audio alone')."
+      output_format: "frozen hidden states, mean-pooled over valid frames per selected layer"
+      notes: "pytorch_model.bin is in the local HF cache (blob 3249fe98...). An unmerged safetensors-conversion PR snapshot (refs/pr/11) is also cached; it is NOT used (not the pinned revision)."
+    restrictions: []
+
+  hubert_base:
+    family: hubert
+    priority: 7
+    role: frozen_encoder
+    adapter: encoder
+    output: embeddings
+    child_speech: false
+    hf_id: facebook/hubert-base-ls960
+    hf_id_status: verified_public
+    revision: dba3bb02fda4248b6e082697eee756de8fe8aa8a
+    revision_date: "2021-11-05T12:43:12Z"
+    local_dir: hubert_base
+    expected_architectures: [hf_encoder]
+    expected_model_type: hubert
+    expected_class: HubertModel
+    expected_params_millions: 95
+    precision: auto
+    sample_rate: 16000
+    encoder_layers: [6, 12]
+    files:
+      - {name: config.json, size: 1385, role: config}
+      - {name: preprocessor_config.json, size: 213, role: processor}
+      - {name: pytorch_model.bin, size: 377569754, role: weights,
+         sha256: 062249fffb353eab67547a2fbc129f7c31a2f459faf641b19e8fb007cc5c48ad}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/facebook/hubert-base-ls960
+      api_url: https://huggingface.co/api/models/facebook/hubert-base-ls960
+      paper_url: https://arxiv.org/abs/2106.07447
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/hubert-base-ls960
+      license_evidence: "cardData.license = apache-2.0; tag license:apache-2.0 (HF API at dba3bb0)."
+      training_sources:
+        - "Self-supervised pretraining on LibriSpeech 960 h (model name ls960; cardData.datasets = [librispeech_asr])"
+      training_evidence_url: https://arxiv.org/abs/2106.07447
+      enumerated_corpora: true
+      release_date: "2021-11-05"
+      architecture_evidence: "config.architectures = [HubertModel]; pipeline_tag feature-extraction; no tokenizer."
+      output_format: "frozen hidden states, mean-pooled over valid frames per selected layer"
+    restrictions: []
+
+  wavlm_base_plus:
+    family: wavlm
+    priority: 8
+    role: frozen_encoder
+    adapter: encoder
+    output: embeddings
+    child_speech: false
+    hf_id: microsoft/wavlm-base-plus
+    hf_id_status: verified_public
+    revision: 4c66d4806a428f2e922ccfa1a962776e232d487b
+    revision_date: "2021-12-22T17:23:24Z"
+    local_dir: wavlm_base_plus
+    expected_architectures: [hf_encoder]
+    expected_model_type: wavlm
+    expected_class: WavLMModel
+    expected_params_millions: 95
+    precision: fp32                         # WavLM gated relative position bias: half precision can produce NaN
+    sample_rate: 16000
+    encoder_layers: [6, 12]
+    files:
+      - {name: config.json, size: 2232, role: config}
+      - {name: preprocessor_config.json, size: 215, role: processor}
+      - {name: pytorch_model.bin, size: 377617425, role: weights,
+         sha256: 3bb273a6ace99408b50cfc81afdbb7ef2de02da2eab0234e18db608ce692fe51}
+    evidence:
+      evidence_status: assembled_from_official_sources
+      model_card_url: https://huggingface.co/microsoft/wavlm-base-plus
+      api_url: https://huggingface.co/api/models/microsoft/wavlm-base-plus
+      paper_url: https://arxiv.org/abs/2110.13900
+      license_id: cc-by-sa-3.0
+      license_url: https://github.com/microsoft/UniSpeech/blob/main/LICENSE
+      license_evidence: >-
+        HF card: no cardData.license and no license tag. README: "The official license can be found here" ->
+        github.com/microsoft/UniSpeech/blob/main/LICENSE, which is "Attribution-ShareAlike 3.0 Unported". The WavLM
+        code (github.com/microsoft/unilm) is MIT. No document addresses the weights alone.
+      training_sources:
+        - "Libri-Light 60,000 h; GigaSpeech 10,000 h; VoxPopuli 24,000 h (card, verbatim)"
+      training_evidence_url: https://huggingface.co/microsoft/wavlm-base-plus
+      enumerated_corpora: true
+      release_date: "2021-12-22"
+      architecture_evidence: "config.architectures = [WavLMModel]; feature-extraction; no tokenizer."
+      output_format: "frozen hidden states, mean-pooled over valid frames per selected layer"
+    restrictions:
+      - id: WLM-LICENSE
+        check: license
+        blocking: true
+        text: >-
+          License of the weights is not stated on the model card (see license_policy.conditional.cc-by-sa-3.0).
+          Approve only after deciding which license governs the checkpoint, acknowledging CC-BY-SA-SHAREALIKE and
+          WAVLM-LICENSE-AMBIGUOUS; otherwise reject (the model is optional).

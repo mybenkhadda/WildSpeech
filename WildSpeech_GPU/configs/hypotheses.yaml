@@ -1,0 +1,62 @@
+# Pre-registered hypotheses. Stages update status (proposed -> supported | not_supported | inconclusive)
+# with the evidence they produce. Evidence rules are implemented in the stage named in `tested_in`.
+- id: H01
+  statement: "Fold-fitted IRT/difficulty-adjusted accuracy adds predictive value beyond the provided task thetas."
+  family: ITEM
+  tested_in: P10
+  rule: "ablation delta R2 of ITEM over the base has bootstrap 95% CI > 0"
+- id: H02
+  statement: "Response timing (onset latency, pauses, speech rate) predicts outcome beyond screening scores."
+  family: TEMPORAL
+  tested_in: P07
+  rule: ">= 1 TEMPORAL feature with FDR q < alpha for association with screening-only OOF residuals"
+- id: H03
+  statement: "Spectral/MFCC characteristics carry residual signal after controlling for recording quality."
+  family: SPECTRAL
+  tested_in: P08
+  rule: "artifact-adjusted partial correlation keeps FDR q < alpha for >= 1 SPECTRAL/MFCC feature"
+- id: H04
+  statement: "Acoustic features differ between correct and incorrect responses to the same item."
+  family: ACOUSTIC
+  tested_in: P02
+  rule: ">= 1 feature with item-centred correct-vs-incorrect difference at FDR q < alpha"
+- id: H05
+  statement: "Students cluster into reproducible speech/literacy phenotypes."
+  family: PHENOTYPE
+  tested_in: P06
+  rule: "best k has bootstrap mean ARI >= 0.6"
+- id: H06
+  statement: "Acoustic signals in screening-residuals survive school adjustment."
+  family: ACOUSTIC
+  tested_in: P08
+  rule: "school-demeaned association keeps sign and FDR q < alpha for >= 1 feature"
+- id: H07
+  statement: "Original recording sample rate (11025 vs 16000) acts as a confound of acoustic features."
+  family: RECORDING
+  tested_in: P08
+  rule: "|corr(feature, sr_11025)| > artifact flag for >= 10% of acoustic features"
+- id: H08
+  statement: "Composite literacy indices provide incremental predictive value over screening."
+  family: INDEX
+  tested_in: P09
+  rule: ">= 1 index with CV delta R2 bootstrap 95% CI > 0"
+- id: H09
+  statement: "Multimodal fusion improves R2 over the best single-family model."
+  family: FUSION
+  tested_in: P11
+  rule: "best fusion model delta R2 vs best P10 model CI > 0"
+- id: H10
+  statement: "Pronunciation confidence (CTC GOP) predicts outcome beyond accuracy."
+  family: ALIGN
+  tested_in: P07
+  rule: ">= 1 ALIGN feature FDR q < alpha against screening residuals"
+- id: H11
+  statement: "Large baseline failures form identifiable clusters that some modality recovers."
+  family: FAILURE
+  tested_in: P12
+  rule: ">= 1 failure cluster with model MAE reduction CI > 0"
+- id: H12
+  statement: "Signal generalises across schools (LOSO R2 within 0.05 of repeated K-fold)."
+  family: GENERALISATION
+  tested_in: P08
+  rule: "LOSO R2 of best acoustic model >= repeated-kfold R2 - 0.05"

@@ -1,0 +1,200 @@
+# WildSpeech V2 — robust acoustic & phonetic intelligence (stages P16-P22).
+# Merged into default.yaml at load time. EVERYTHING lives under `v2`, so V1 stage fingerprints (P00-P15) never
+# change when these values change; V2 stage fingerprints hash the sub-sections they declare.
+# Precedence: default.yaml < v2.yaml < profiles.yaml[profile] < notebook / CLI overrides.
+
+v2:
+  project:
+    version: "2.0.0"
+    output_dir: outputs/V2
+    figure_dpi: 150
+
+  runtime:
+    refresh_stale_soft_deps: true     # re-run stale soft dependencies of V2 stages before consuming them
+    enforce_fresh_upstream: true      # stages raise StaleUpstreamError if an upstream artefact is outdated
+    audio_threads: 6
+    prefetch_batches: 2
+    checkpoint_every: 1000
+    batch_seconds: 360.0              # padded-seconds budget per GPU batch (shared by every V2 audio pass)
+    max_batch_size: 48
+
+  validation:
+    # Frozen shared registry (outputs/V2/validation_registry.parquet). The K-fold schemes reuse V1's
+    # validation.* settings, so their folds — and the cached V1 fold feature matrices — are identical.
+    schemes: [repeated_kfold, school_kfold, loso, instrument_transfer, sample_rate_transfer,
+              sample_rate_equal_n, instrument_equal_n]
+    primary: repeated_kfold
+    max_repeats: null                 # null = all repeats of validation.n_repeats; 1 = first repeat only
+    equal_n_repeats: 5
+    equal_n_holdout_frac: 0.3
+    inner_splits: 4                   # nested student-disjoint cross-fitting of clip-level supervised features
+    rebuild_if_changed: false         # data/config hash mismatch -> error (true = rebuild and record)
+    discovery_fraction: 0.5           # exploratory (discovery) vs confirmatory half for clip-level science
+    target_quantiles: 5
+
+  evaluation:
+    baseline: auto                    # auto = strongest validated tabular model in P10 (fallback P01 / default)
+    baseline_fallback: {model: GAM, families: [SCREENING, BEHAVIOR, ITEM]}
+    conservative: {model: RIDGE, families: [SCREENING, RECORDING]}
+    student_schemes: [repeated_kfold, school_kfold, sample_rate_transfer, sample_rate_equal_n]
+    bootstrap: 1000
+    fdr_alpha: 0.05
+    default_budget: 20
+    family_components: 10             # per-family PCA (fold-fitted) before budget selection
+    select_on_residual: true          # budget selection ranks columns against the baseline residual
+    eval_time_budget_s: 7200
+    max_evals: 400
+
+  harmonization:
+    enabled: true
+    selected: auto                    # auto = chosen by P16's robustness rule; or a variant name
+    splits: [train]                   # test features are produced by P22 when submission is enabled
+    reuse_original_cache: true        # variant 'orig' reads the existing P02 family caches (no re-extraction)
+    families: [quality, temporal, spectral, mfcc, mel]
+    robust_family: true               # CMVN-MFCC dynamics, PNCC-like cepstra, speech-vs-background bands
+    active_variants: [orig, bw5k, bw4k, nb3k4, bw4k_amp]
+    variants:
+      orig:  {lowpass_hz: null, highpass_hz: null, amp_norm: false}
+      bw5k:  {lowpass_hz: 5000, highpass_hz: null, amp_norm: false}
+      bw4k:  {lowpass_hz: 4000, highpass_hz: null, amp_norm: false}
+      nb3k4: {lowpass_hz: 3400, highpass_hz: 300, amp_norm: false}
+      bw4k_amp: {lowpass_hz: 4000, highpass_hz: null, amp_norm: true}
+    transition_hz: 250
+    amp_target_dbfs: -26.0
+    max_clip_seconds: 30.0
+    max_clips: null                   # profile-controlled (V2_SMOKE)
+    core_features:
+      temporal: [speech_ratio, onset_latency_s, speech_dur_s, n_pauses, pause_ratio, mean_pause_s, nucleus_rate, trailing_silence_s]
+      spectral: [centroid_mean, bandwidth_mean, rolloff_mean, flatness_mean, entropy_mean, flux_mean, slope_mean]
+      quality: [snr_db, noise_floor_db, bandlimit_hz, hf_ratio]
+      mfcc: [mfcc1_mean, mfcc2_mean, mfcc3_mean, mfcc4_mean, dmfcc1_std, dmfcc2_std]
+      mel: [melband0_mean, melband2_mean, melband4_mean, melband6_mean]
+      robust: [cmvn_delta_std, cmvn_ddelta_std, cmvn_lag1_autocorr, cmvn_frame_dist, pncc1_mean, pncc2_mean, pncc3_mean, band_snr_low, band_snr_mid, band_snr_high, tilt_in_band]
+    residualize_controls: [item, domain, duration, complexity, correctness]
+    shrinkage_k: 10.0
+    perturbation_clips: 240
+    perturbations: [pitch_up_2st, pitch_down_2st, noise_20db, noise_10db, lowpass_4k, gain_minus_12db]
+    student_budget: 20
+    parity_clips: 8
+    parity_rtol: 0.003
+    parity_atol: 0.002
+    min_school_size: 8
+    selection_rule: "max incremental R2 among variants whose sample-rate AUROC <= orig AUROC; ties -> stability"
+
+  correctness:
+    enabled: true
+    feature_sets: [META, LINGUISTIC, TEMPORAL, SPECTRAL, WAVELET_PITCH, HARMONIZED, COMBINED, PHONETIC, EMBEDDING, FULL]
+    models: [LOGISTIC, LIGHTGBM, XGBOOST, CATBOOST, MLP]
+    crossfit_model: LIGHTGBM          # pre-specified model for nested student features (fallback LOGISTIC)
+    crossfit_feature_sets: [META, LINGUISTIC, TEMPORAL, HARMONIZED, COMBINED, FULL]
+    crossfit_schemes: [repeated_kfold, school_kfold, sample_rate_transfer, sample_rate_equal_n]
+    clip_cv_splits: 5
+    calibration: isotonic             # none | platt | isotonic (fitted on inner-OOF predictions)
+    include_screening_theta: false    # P(correct | audio, expected text, task) excludes student ability by design
+    max_grid_evals: 60
+    embedding_pca: 32
+    lgbm: {n_estimators: 400, learning_rate: 0.03, num_leaves: 31, min_child_samples: 40, subsample: 0.8, colsample_bytree: 0.6, reg_lambda: 5.0}
+    mlp: {hidden: 64, dropout: 0.2, lr: 0.002, weight_decay: 0.0001, epochs: 60, patience: 8, batch_size: 512}
+    bootstrap: 500
+
+  phonetic:
+    enabled: false                    # V2_PHONETIC / V2_FULL enable it; needs locally downloaded, verified models
+    require_verification: true        # license_verified AND overlap_checked in configs/foundation_models.yaml
+    asr_models: [whisper_small_en]
+    ctc_char_models: [wav2vec2_base_960h]
+    ctc_phoneme_models: [wav2vec2_phoneme_espeak]
+    child_models: [child_asr_custom]
+    g2p_backend: auto                 # auto -> g2p_en, then nltk cmudict, then rule-based (approximate)
+    allow_approximate_g2p: false      # phoneme-level metrics are skipped when only the rule-based proxy exists
+    batch_size: 8
+    max_seconds: 30.0
+    low_confidence_logprob: -2.0
+    splits: [train]
+    max_clips: null
+    position_bins: 3
+    example_clips: 6
+    fp16: true
+
+  reference:
+    enabled: true
+    variant: auto                     # harmonized waveform variant used for frame sequences (auto = P16 selection)
+    frame_hop: 320                    # 20 ms frames (50 fps)
+    n_mfcc: 13
+    n_mels: 24
+    max_frames: 200
+    trim_margin_frames: 5
+    exemplars_per_item: 4
+    min_correct_per_item: 5
+    band_frac: 0.35                   # Sakoe-Chiba band relative to sequence length
+    local_window: 10
+    dtw_batch_pairs: 384
+    crossfit_schemes: [repeated_kfold]
+    inner_splits: 3
+    use_posteriors: true              # phonetic posterior similarity when P18 posteriors exist
+    use_embeddings: true              # embedding similarity when P20 embeddings exist
+    embedding_layer: auto
+    synthetic:
+      enabled: false                  # locally generated reference speech (pre-rendered WAV/FLAC files)
+      directory: null                 # <dir>/<item slug>.wav ; slug = task__expected_text_norm with spaces -> _
+      license_verified: false
+    splits: [train]
+    max_clips: null
+
+  foundation:
+    enabled: false                    # V2_FOUNDATION / V2_FULL enable it
+    models: [wav2vec2_base, hubert_base, wavlm_base_plus, whisper_base]
+    layers: all
+    poolings: [mean, std, speech_mean]
+    batch_size: 8
+    max_seconds: 20.0
+    fp16: true
+    splits: [train]
+    max_clips: null
+    layer_eval_clips: 6000
+    layer_eval_pca: 64
+    student_pcs: 8
+    top_layers_for_outcome: 3
+    knn_k: 5
+    cka_clips: 2000
+
+  multimodal:
+    enabled: true
+    budgets: [5, 10, 20, 50, 100]
+    models: [RIDGE, ELASTIC_NET, GAM, PLS, CATBOOST, XGBOOST, LIGHTGBM]
+    fusions: [early, late, residual, task_pool, stack, moe]
+    ablation_model: RIDGE
+    ablation_budget: 20
+    pairwise: true
+    leave_one_out: true
+    moe_min_domain_size: 40
+    indices:
+      enabled: true
+      min_components: 2
+      recipes:
+        PHONEMIC_ACCURACY: {description: "1 - phoneme error rate on blending/deletion (expected-text-conditioned).",
+                            include: ["PHON__blending__*per*__mean", "PHON__deletion__*per*__mean", "PHON__*__seq_preservation__mean"]}
+        PRONUNCIATION_CONFIDENCE: {description: "Forced-alignment goodness-of-pronunciation and expected-response likelihood.",
+                                   include: ["PHON__*__gop_mean__mean", "PHON__*__expected_ll__mean", "PHON__*__ll_ratio__mean"]}
+        REFERENCE_FLUENCY: {description: "Reference-conditioned timing: duration ratio, warping irregularity, local deviation.",
+                            include: ["REF__*__dur_ratio__mean", "REF__*__warp_nondiag_frac__mean", "REF__*__dtw_mfcc_mean__correct_mean"]}
+        SOFT_MASTERY: {description: "Difficulty-aware soft correctness and confidence-difficulty relation.",
+                       include: ["SOFT__*__p_mean__value", "SOFT__*__conf_difficulty_slope__value", "SOFT__*__near_correct_frac__value"]}
+
+  failure:
+    quantile: 0.85
+    extreme_target_quantile: 0.05
+    disagreement_quantile: 0.85
+    bootstrap: 1000
+    safety:
+      max_abs_z: 6.0                  # predictions beyond train mean +- max_abs_z * train sd are 'extreme'
+      max_extreme_frac: 0.0
+      range_margin_sd: 1.0            # prediction quantiles must stay within [min(y)-m*sd, max(y)+m*sd]
+      min_fold_r2: -0.10
+      max_repeat_sd: 0.05
+    candidates: [conservative_screening, best_tabular, harmonized_acoustic, phonetic_multimodal, residual_fusion, final_ensemble]
+
+  submission:
+    enabled: false                    # test inference disabled by default; V2_SUBMISSION profile enables it
+    directory: submissions/V2
+    clip_to_train_range: true
+    extract_test_features: true       # P22 extracts the test-split features each candidate needs (resumable)

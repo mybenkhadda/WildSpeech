@@ -1,0 +1,184 @@
+# WildSpeech V3 — child ASR, phonetic intelligence and reading prediction (stages P23-P29).
+# Merged after v2.yaml at load time. EVERYTHING lives under `v3`, so V1 (P00-P15) and V2 (P16-P22) stage
+# fingerprints never change when these values change. V3 profiles additionally layer the V2_FULL profile
+# overrides (see profiles.yaml `base_profile`) so the completed V2 stages stay `cached` instead of being re-planned.
+# Precedence: default.yaml < V1 snapshot < v2.yaml < v3.yaml < base_profile overrides < profile < notebook/CLI.
+
+v3:
+  project:
+    version: "3.0.0"
+    output_dir: outputs/V3
+    figure_dpi: 150
+    code_version: "v3.0.0"
+
+  runtime:
+    enforce_fresh_v3_upstream: true   # stale V3 upstream -> error; stale V2/V1 upstream -> recorded warning
+    refresh_stale_v3_soft_deps: true
+    never_auto_rerun_v2: true         # V3 never re-plans V1/V2 stages; their staleness is audited in P23
+    max_repeats: null                 # V3-side limit on repeated-CV repeats (null = all registry repeats)
+
+  # NOT part of any stage fingerprint (v3.runtime is, so this must not live there: adding a key to v3.runtime would
+  # make every completed V3 stage, including P23, stale).
+  orchestration:
+    # completed stages that are NEVER re-run implicitly (as a stale soft dependency or after a fingerprint change);
+    # only an explicit force (FORCE / --force P23) recomputes them. P23 holds the validated fusion-audit repairs.
+    protected_stages: [P23]
+
+  # ------------------------------------------------------------------ P23 fusion audit
+  audit:
+    enabled: true
+    stage_v2: P21                     # V2 stage whose experiments are audited
+    reaudit_specs: [P21_SINGLE_HARM, P21_SINGLE_SOFT, P21_SINGLE_REF, P21_SINGLE_CPX, P21_ALL_RESIDUAL_RIDGE,
+                    P21_FUSION_EARLY, P21_FUSION_LATE, P21_FUSION_TASK_POOL, P21_BUDGET_ALL_100]
+    schemes: [repeated_kfold]
+    zero_delta_tol: 1.0e-12           # |prediction - baseline| below this on every student = "identical to baseline"
+    forced_alpha: 1.0                 # diagnostic re-fit with the residual shrinkage forced to this value
+    continuous_alphas: [0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
+    task_ensemble_audit: true         # re-evaluate the V1 TASK_ENSEMBLE (P11) with prediction tracing
+    extreme_z: 6.0                    # |pred - mean(y)| / sd(y) above this = extreme prediction
+    bootstrap: 1000
+
+  # ------------------------------------------------------------------ P24 local ASR
+  asr:
+    enabled: false                    # V3_ASR / V3_FULL enable it; models must pass eligibility
+    registry_file: v3_asr_models.yaml # configs/<file>: evidence registry (facts, no approvals)
+    reviews_file: v3_asr_reviews.yaml # configs/<file>: manual review records (the only approvals)
+    proposals_file: v3_asr_review_proposals.yaml   # DRAFT reviews assembled from evidence (never approvals)
+    accept_fixture_outputs: false     # TEST-ONLY: accept synthetic fixture caches as ASR outputs (never in real runs)
+    # registry priority order: recognisers first (pasketti_phonetic phonemes, whisper_small_en words), then encoders
+    models: [pasketti_phonetic, whisper_small_en, pasketti_word, wav2vec2_phoneme_espeak, wav2vec2_base_960h,
+             wav2vec2_base, hubert_base, wavlm_base_plus]
+    splits: [train]                   # test inference only through P29 submission (never pseudo-labelled)
+    downloads:
+      # ALLOW_MODEL_DOWNLOADS. Also enabled by the environment variable ALLOW_MODEL_DOWNLOADS=1 or by
+      # `python -m wildspeech v3-install --execute`. Even when true, ONLY models whose legal / provenance / overlap /
+      # competition dimensions all PASS (approved reviews) are downloaded.
+      allow_model_downloads: false
+      # per-model download authorization: [] = every model whose reviews pass; otherwise ONLY the listed keys
+      # (notebook: DOWNLOAD_MODELS). The reviews gate applies in both cases.
+      authorized_models: []
+      # complete the PINNED cache snapshot from LFS blobs already on disk (sha256-addressed, so no revision is mixed);
+      # no network. Small git files are never borrowed from another revision.
+      offline_repair: true
+      storage: auto                  # auto: reuse the HF cache when it already holds the repo, else models/<dir>
+      verify_sha256: true             # hash LFS files against the registry (cached in models/_sha256_cache.json)
+      convert_verified_bin: true      # .bin-only checkpoints + torch < 2.6: sha256-verified local safetensors copy
+      use_hf_xet: auto                # huggingface_hub uses hf_xet automatically when installed; false disables it
+    smoke:
+      enabled: true                   # P24 decodes a few training clips per model before the full pass
+      clips: 8                        # task-stratified (+ the longest clip, to exercise chunking)
+      always: false                   # true: re-run even when a passing smoke test exists for this revision
+    unbatched_group_norm: true        # feat_extract_norm="group" encoders ignore masks -> one clip per forward
+    qwen3_asr:                        # pasketti_word backend (qwen_asr + vLLM; Linux / WSL2 only)
+      language: English
+      batch_size: 16
+      batch_seconds: 240.0
+      allow_transformers_backend: false   # card: transformers backend NOT supported for this checkpoint
+      llm_kwargs: {gpu_memory_utilization: 0.80, max_model_len: 4096}
+    max_clips: null                   # profile-controlled (V3_SMOKE)
+    device: auto
+    precision: auto                   # auto -> bf16 if supported, else fp16 on CUDA, fp32 on CPU
+    max_audio_seconds: 120.0          # clips are decoded up to this length; longer audio is truncated + flagged
+    chunk_seconds: 25.0               # long recordings are chunked with overlap and stitched
+    chunk_overlap_seconds: 2.0
+    batch:
+      large_model_batch_size: 2       # >= 300M parameters (upper bound; reduced to what fits in VRAM)
+      small_model_batch_size: 8
+      large_model_params: 300000000
+      batch_seconds_large: 60.0       # padded-seconds budget per batch
+      batch_seconds_small: 240.0
+      vram_headroom: 0.80             # fraction of total VRAM the policy plans to use (8 GB -> 6.4 GB)
+      cuda_context_gb: 0.8
+      activation_gb_per_clip_large: 0.9
+      activation_gb_per_clip_small: 0.35
+      grow_after: 20                  # micro-batch doubles back after this many OOM-free calls
+    precision_guard: true             # non-finite fp16/bf16 scores -> switch the model to fp32 and redo the batch
+    cpu_fallback_on_oom: true         # a single clip that OOMs on GPU is retried on CPU
+    checkpoint_every: 250             # clips per Parquet checkpoint
+    save_token_probabilities: true    # only stored when the model actually exposes them
+    save_embeddings: true             # mean-pooled final encoder layer over valid frames (frozen)
+    embedding_dtype: float16
+    whisper_max_new_tokens: 96
+    whisper_beam_size: 1
+    expected_text_scoring: true       # teacher-forced / CTC-forced likelihood of the expected response
+    low_confidence_logprob: -2.0
+    examples_per_task: 4              # transcription examples written to P24 (training data only)
+
+  # ------------------------------------------------------------------ P25 phonetic features
+  phonetics:
+    enabled: true
+    g2p_backend: auto                 # g2p_en -> cmudict -> rule proxy (approximate; flagged)
+    allow_approximate_g2p: false
+    position_bins: 3
+    pause_frames: 5                   # >= 5 blank frames (100 ms) between aligned phones = a pause
+    frame_seconds: 0.02
+    manual_review_clips: 60           # training clips exported for permitted manual review (no audio copied)
+    validation_min_clips: 50
+
+  # ------------------------------------------------------------------ P26 correct-response science
+  discovery:
+    enabled: true
+    controls: [item, domain, duration, complexity]
+    shrinkage_k: 10.0
+    min_correct_clips_per_student: 3
+    discovery_fraction: 0.5
+    n_perm: 2000
+    bootstrap: 1000
+    top_k_confirm: 25
+    similar_ability_bins: 5           # screening-ability strata (fold-fitted theta quantiles)
+    clip_cv_splits: 5
+    clip_models: [LOGISTIC, LIGHTGBM]
+
+  # ------------------------------------------------------------------ P27 ASR disagreement
+  disagreement:
+    enabled: true
+    high_uncertainty_quantile: 0.85
+    min_models: 2
+    top_confusions: 25
+
+  # ------------------------------------------------------------------ P28 compact representations
+  representations:
+    enabled: true
+    budgets: [5, 10, 20, 50, 100]
+    methods: [select, pca, pls, rrr, mil]
+    family_components_auto: true      # PCA components follow the budget (V2 capped them at 10 -> flat budget curves)
+    encoder_pcs: 16                   # fold-fitted PCs per frozen encoder (ASR13 / ASRF_* families)
+    rrr_rank_grid: [2, 4, 8]
+    rrr_alphas: [1.0, 10.0, 100.0, 1000.0]
+    mil:
+      enabled: true
+      min_train_students: 200
+      hidden: 32
+      epochs: 80
+      lr: 0.003
+      weight_decay: 0.001
+      dropout: 0.2
+      patience: 10
+      embedding_pcs: 32
+    nested_soft:
+      model: LOGISTIC                 # LOGISTIC | LIGHTGBM (pre-specified; nested by student)
+      inner_splits: 4
+
+  # ------------------------------------------------------------------ P29 reading prediction
+  ablation:
+    enabled: true
+    schemes: [repeated_kfold, school_kfold, loso, instrument_transfer, sample_rate_transfer]
+    primary_scheme: repeated_kfold
+    models: [RIDGE, ELASTIC_NET, GAM, PLS, CATBOOST, XGBOOST, LIGHTGBM]
+    fusions: [early, late, task_pool, residual]
+    default_budget: 20
+    default_method: pca
+    bootstrap: 1000
+    fdr_alpha: 0.05
+    max_evals: 600
+    eval_time_budget_s: 14400
+    negative_controls: [permuted_features, recording_only, shuffled_outcome]
+    # overlap sensitivity: the Pasketti models were trained on ReadNet (Reach Every Reader) data -> every validated
+    # family is re-evaluated without features derived from these models (table overlap_sensitivity)
+    exclusion_sets:
+      NO_PASKETTI: [pasketti_phonetic, pasketti_word]
+    stability_top_k: 20
+    submission:
+      enabled: false
+      directory: submissions/V3
+      clip_to_train_range: true

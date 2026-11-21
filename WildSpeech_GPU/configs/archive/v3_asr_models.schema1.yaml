@@ -1,0 +1,80 @@
+# ARCHIVED 2026-11-20 — schema 1 of configs/v3_asr_models.yaml (boolean review flags), kept for provenance only.
+# The pipeline no longer reads this file. Schema 2 (evidence registry + configs/v3_asr_reviews.yaml) replaced it.
+
+allowed_licenses: [apache-2.0, mit, bsd-3-clause, cc-by-4.0, cc-by-sa-4.0, openrail]
+
+models:
+  pasketti_phonetic:
+    hf_id: drivendata/pasketti-phonetic
+    local_path: null
+    role: child_phonetic
+    adapter: pasketti_phonetic
+    output: phones
+    child_speech: true
+    license: null
+    license_verified: false
+    training_data: null
+    provenance_verified: false
+    overlap_checked: false
+    competition_eligible: false
+    revision: null
+
+  pasketti_word:
+    hf_id: drivendata/pasketti-word
+    local_path: null
+    role: child_word
+    adapter: pasketti_word
+    output: words
+    child_speech: true
+    license: null
+    license_verified: false
+    training_data: null
+    provenance_verified: false
+    overlap_checked: false
+    competition_eligible: false
+    revision: null
+
+  whisper_small_en:
+    hf_id: openai/whisper-small.en
+    local_path: null
+    role: general_word
+    adapter: whisper
+    output: words
+    child_speech: unknown
+    license: apache-2.0
+    license_verified: false
+    training_data: "680k h weakly supervised web audio (OpenAI); composition not fully public"
+    provenance_verified: false
+    overlap_checked: false
+    competition_eligible: false
+    revision: null
+
+  wav2vec2_phoneme_espeak:
+    hf_id: facebook/wav2vec2-lv-60-espeak-cv-ft
+    local_path: null
+    role: general_phonetic
+    adapter: ctc
+    output: phones
+    child_speech: false
+    license: apache-2.0
+    license_verified: false
+    training_data: "Libri-Light 60k h (unlabelled) + CommonVoice espeak phoneme transcriptions, adult speech"
+    provenance_verified: false
+    overlap_checked: false
+    competition_eligible: false
+    revision: null
+
+  wav2vec2_base_960h:
+    hf_id: facebook/wav2vec2-base-960h
+    local_path: null
+    role: general_char
+    adapter: ctc
+    output: chars
+    child_speech: false
+    license: apache-2.0
+    license_verified: false
+    training_data: "LibriSpeech 960 h, adult read speech"
+    provenance_verified: false
+    overlap_checked: false
+    competition_eligible: false
+    revision: null

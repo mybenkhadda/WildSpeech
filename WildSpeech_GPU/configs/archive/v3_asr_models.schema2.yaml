@@ -1,0 +1,228 @@
+# WildSpeech V3 — evidence-backed local ASR model registry (P24), schema 2.
+#
+# This file holds FACTS about each model (where its card is, what its license and training data are said to be,
+# and which restrictions are still open). It contains NO approval switches. Approvals are manual review records in
+# configs/v3_asr_reviews.yaml, written with `python -m wildspeech.asr.reviews record ...`. Every review is
+# re-validated on every run (wildspeech.asr.reviews.validate_entry), so a review cannot skip a check.
+#
+# A model may run (ELIGIBLE) only when all four dimensions PASS:
+#   LEGAL       license documented + in allowed_licenses + approved license review; family allowed by the
+#               competition policy below
+#   PROVENANCE  training sources documented; approved provenance AND overlap reviews; every blocking restriction
+#               resolved by an approved review that lists its id under `resolves`
+#   CHECKPOINT  snapshot on disk (never downloaded by the pipeline), required files present, revision matches the
+#               pinned / reviewed revision
+#   FRAMEWORK   detected architecture is expected for this model, the adapter supports it, packages importable
+# EXECUTION (never_run / partial / complete / failed) is reported separately and never makes a model eligible.
+#
+# Evidence below was pre-filled on 2026-11-20 from public model cards / papers. Every item still needs YOUR review
+# against the card at the pinned revision: `evidence_status: prefilled_unreviewed` means exactly that.
+# Downloading: scripts\v3_download_asr_models.ps1 (prints commands; downloads only with -Execute, run by you).
+
+schema_version: 2
+
+allowed_licenses: [apache-2.0, mit, bsd-3-clause, cc-by-4.0, cc-by-sa-4.0]
+
+# Snapshots default to <repo>/<checkpoint_root>/<model_key> (local_path overrides it per model).
+checkpoint_root: models/asr
+
+competition_policy:
+  # Recorded from the user's instruction of 2026-11-20. Paste the rule / forum URL into source_url once located;
+  # until then the competition check passes with a WARN (the statement itself is recorded).
+  statement: >-
+    The competition explicitly permits eligible pretrained Whisper, wav2vec2 and Pasketti models.
+  recorded_by: "user instruction, 2026-11-20"
+  source_url: null
+  permitted_families: [whisper, wav2vec2, pasketti]
+  conditions:
+    - "Permission is per family; each checkpoint must still pass its own license and provenance review."
+    - "A checkpoint whose training data may contain this competition's recordings is not eligible."
+
+models:
+  # ------------------------------------------------------------------------------------------ child phonetic
+  pasketti_phonetic:
+    family: pasketti
+    priority: 1                        # preferred phoneme recogniser (subject to verification)
+    role: child_phonetic
+    adapter: pasketti_phonetic         # dispatches on the architecture detected from the snapshot
+    output: phones
+    child_speech: true
+    hf_id: drivendata/pasketti-phonetic
+    hf_id_status: unverified           # repo id NOT confirmed; check the DrivenData announcement for the card link
+    expected_architectures: [hf_ctc, hf_whisper]
+    local_path: null
+    revision: null                     # pin the commit you reviewed (download script records it)
+    precision: auto
+    evidence:
+      evidence_status: prefilled_unreviewed
+      model_card_url: https://huggingface.co/drivendata/pasketti-phonetic
+      announcement_url: https://www.drivendata.org/competitions/group/childrens-asr-competition/
+      reference_implementation_url: https://blog.drivendata.org/blog/child-asr-phonetic-reference-implementation
+      license_id: null                 # not yet read from the card
+      license_url: null
+      license_evidence: null
+      training_sources:
+        - "Children's speech corpora assembled for DrivenData's 'On Top of Pasketti' challenge (Phonetic Track)"
+        - "DrivenData retrained the winning approach on additional data before release (announcement page)"
+      training_evidence_url: https://www.drivendata.org/competitions/group/childrens-asr-competition/
+      output_format: "IPA phone sequence (Phonetic Track target) -> mapped to ARPAbet by wildspeech.phonetic.g2p"
+      notes: "Error rates are published per age group / source corpus on the model card."
+    restrictions:
+      - id: PSK-PH-REPO
+        check: provenance
+        blocking: true
+        text: "Hugging Face repo id not confirmed; confirm the official card before reviewing anything else."
+      - id: PSK-PH-LICENSE
+        check: license
+        blocking: true
+        text: "License not yet read from the model card; record license_id/license_url from the card."
+      - id: PSK-PH-OVERLAP
+        check: overlap
+        blocking: true
+        text: >-
+          Trained on pooled children's speech corpora. Confirm from the card's source-corpus list that none of them
+          is the source of this competition's recordings (literacy assessments, wj4 / ktea3 instruments).
+      - id: PSK-PH-TERMS
+        check: license
+        blocking: true
+        text: "Check the card / DrivenData terms for use restrictions (research-only, attribution, data terms)."
+
+  # --------------------------------------------------------------------------------------------- child word
+  pasketti_word:
+    family: pasketti
+    priority: 3
+    role: child_word
+    adapter: pasketti_word
+    output: words
+    child_speech: true
+    hf_id: drivendata/pasketti-word
+    hf_id_status: unverified
+    expected_architectures: [hf_whisper, hf_ctc, nemo]
+    local_path: null
+    revision: null
+    precision: auto
+    evidence:
+      evidence_status: prefilled_unreviewed
+      model_card_url: https://huggingface.co/drivendata/pasketti-word
+      announcement_url: https://www.drivendata.org/competitions/group/childrens-asr-competition/
+      license_id: null
+      license_url: null
+      license_evidence: null
+      training_sources:
+        - "Children's speech corpora assembled for DrivenData's 'On Top of Pasketti' challenge (Word Track)"
+        - "DrivenData retrained the winning approach on additional data before release (announcement page)"
+      training_evidence_url: https://www.drivendata.org/competitions/group/childrens-asr-competition/
+      output_format: "word-level transcript"
+      notes: "Announcement reports WER 0.31 (ages 3-4), 0.11 (5-7), 0.10 (8-11), 0.05 (12+)."
+    restrictions:
+      - id: PSK-WD-REPO
+        check: provenance
+        blocking: true
+        text: "Hugging Face repo id not confirmed."
+      - id: PSK-WD-LICENSE
+        check: license
+        blocking: true
+        text: "License not yet read from the model card."
+      - id: PSK-WD-OVERLAP
+        check: overlap
+        blocking: true
+        text: "Same corpus question as pasketti_phonetic: rule out this competition's recordings."
+      - id: PSK-WD-TERMS
+        check: license
+        blocking: true
+        text: "Check the card / DrivenData terms for use restrictions."
+
+  # ------------------------------------------------------------------------------------------- general word
+  whisper_small_en:
+    family: whisper
+    priority: 2                        # preferred general word recogniser (subject to verification)
+    role: general_word
+    adapter: whisper
+    output: words
+    child_speech: false
+    hf_id: openai/whisper-small.en
+    hf_id_status: verified_public      # well-known public repo; still review the card at your pinned revision
+    expected_architectures: [hf_whisper]
+    expected_params_millions: 242
+    local_path: null
+    revision: null
+    precision: auto                    # fp16/bf16 is standard for Whisper inference
+    evidence:
+      evidence_status: prefilled_unreviewed
+      model_card_url: https://huggingface.co/openai/whisper-small.en
+      paper_url: https://arxiv.org/abs/2212.04356
+      license_id: apache-2.0
+      license_url: https://huggingface.co/openai/whisper-small.en
+      license_evidence: "Model card metadata lists license: apache-2.0."
+      training_sources:
+        - "~680k hours of audio paired with transcripts collected from the internet (Whisper paper, sec. 2.1)"
+        - "English-only '.en' checkpoints are trained on the English portion of that data"
+      training_evidence_url: https://arxiv.org/abs/2212.04356
+      output_format: "English word transcript (BPE tokens, real token log-probabilities)"
+      notes: "Individual source recordings are not published; overlap cannot be proven absent, only judged."
+    restrictions:
+      - id: WSP-OVERLAP
+        check: overlap
+        blocking: true
+        text: >-
+          The web training set is not enumerated. Record your judgement that private literacy-assessment recordings
+          of this competition are not plausibly in it (state the basis in the review summary).
+
+  # -------------------------------------------------------------------------------------- general phonetic
+  wav2vec2_phoneme_espeak:
+    family: wav2vec2
+    priority: 4                        # fallback phoneme recogniser (adult speech)
+    role: general_phonetic
+    adapter: ctc
+    output: phones
+    child_speech: false
+    hf_id: facebook/wav2vec2-lv-60-espeak-cv-ft
+    hf_id_status: verified_public
+    expected_architectures: [hf_ctc]
+    expected_params_millions: 315
+    local_path: null
+    revision: null
+    precision: fp32                    # large CTC model: fp16 posteriors checked by the precision guard; fp32 safest
+    evidence:
+      evidence_status: prefilled_unreviewed
+      model_card_url: https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft
+      paper_url: https://arxiv.org/abs/2109.11680
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft
+      license_evidence: "Model card metadata lists license: apache-2.0."
+      training_sources:
+        - "wav2vec2-large-lv60 pretraining on Libri-Light (~60k h unlabelled English audiobooks)"
+        - "Fine-tuned on multilingual Common Voice with eSpeak-derived phoneme labels"
+      training_evidence_url: https://arxiv.org/abs/2109.11680
+      output_format: "eSpeak IPA phones (Wav2Vec2PhonemeCTCTokenizer; used with do_phonemize=False)"
+      notes: "Adult read/crowd-sourced speech only."
+    restrictions: []
+
+  # ---------------------------------------------------------------------------------------- general chars
+  wav2vec2_base_960h:
+    family: wav2vec2
+    priority: 5
+    role: general_char
+    adapter: ctc
+    output: chars
+    child_speech: false
+    hf_id: facebook/wav2vec2-base-960h
+    hf_id_status: verified_public
+    expected_architectures: [hf_ctc]
+    expected_params_millions: 95
+    local_path: null
+    revision: null
+    precision: auto
+    evidence:
+      evidence_status: prefilled_unreviewed
+      model_card_url: https://huggingface.co/facebook/wav2vec2-base-960h
+      paper_url: https://arxiv.org/abs/2006.11477
+      license_id: apache-2.0
+      license_url: https://huggingface.co/facebook/wav2vec2-base-960h
+      license_evidence: "Model card metadata lists license: apache-2.0."
+      training_sources:
+        - "LibriSpeech 960 h (adult read English audiobooks), pretraining and fine-tuning"
+      training_evidence_url: https://arxiv.org/abs/2006.11477
+      output_format: "upper-case characters with '|' word delimiter"
+      notes: "Adult read speech only."
+    restrictions: []

@@ -1,0 +1,3 @@
+data/train_audio.tar
+data/test_audio.tar
+models/wav2vec2_base_960h/model.safetensors

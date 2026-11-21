@@ -1,0 +1,310 @@
+# WildSpeech V3 — DRAFT review proposals (NOT approvals).
+#
+# Assembled on 2026-11-21 from the evidence in configs/v3_asr_models.yaml (official HF API + model cards, the
+# competition problem description / rules / about pages, license pages). `prepared_by` is NOT a reviewer: no entry
+# here approves anything, and the eligibility checker never reads this file as an approval.
+#
+# To approve, a named human reviewer reads the cited sources at the pinned revision and runs, e.g.:
+#   python -m wildspeech.asr.reviews proposals
+#   python -m wildspeech.asr.reviews accept-proposal --id P-WSP-LP P-WSP-OV --reviewer "<your full name>"
+# Proposals with `ready: false` carry open questions that only you can decide; they are refused unless you add
+# --resolved-open-questions (and, for overlap, usually --mitigation "<your words>").
+# The accepted entry is validated exactly like a hand-written review (asr.reviews.validate_entry).
+
+proposals:
+  # ------------------------------------------------------------------------------- openai/whisper-small.en
+  - id: P-WSP-LP
+    model_key: whisper_small_en
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: e8727524f962ee844a7319d92be39ac1bd25655a
+    license_id: apache-2.0
+    evidence:
+      - url: https://huggingface.co/api/models/openai/whisper-small.en
+        summary: "HF API at e872752: cardData.license apache-2.0, tag license:apache-2.0, not gated, WhisperForConditionalGeneration, no auto_map."
+      - url: https://huggingface.co/openai/whisper-small.en
+        summary: "Card: trained on 680,000 hours of audio and transcripts collected from the internet; English-only checkpoint."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "Competition names Whisper as an allowed pretrained model under a permissive license allowing commercial use; Apache-2.0 qualifies."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-WSP-OV
+    model_key: whisper_small_en
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: e8727524f962ee844a7319d92be39ac1bd25655a
+    overlap_basis: temporal_precedence
+    resolves: [WSP-OVERLAP]
+    evidence:
+      - url: https://huggingface.co/api/models/openai/whisper-small.en
+        summary: "Checkpoint created 2022-09-26 (createdAt); weights unchanged since the 2022 release (paper arXiv 2212.04356)."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/12/
+        summary: "Competition audio = Reach Every Reader screener recordings (MIT/FSU), private research data; public clips denoised + FreeVC24 voice-converted for the 2026-11-19 release, so they did not exist when Whisper was trained."
+    notes: "Raw screener recordings were never published on the web per the organisers; residual risk judged negligible."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ----------------------------------------------------------------------- facebook/wav2vec2-lv-60-espeak-cv-ft
+  - id: P-ESP-LP
+    model_key: wav2vec2_phoneme_espeak
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4
+    license_id: apache-2.0
+    evidence:
+      - url: https://huggingface.co/api/models/facebook/wav2vec2-lv-60-espeak-cv-ft
+        summary: "HF API at ae45363: license apache-2.0, datasets [common_voice], Wav2Vec2ForCTC, pytorch_model.bin sha256 3173bde9..., not gated."
+      - url: https://arxiv.org/abs/2109.11680
+        summary: "Paper: wav2vec2-large-lv60 (Libri-Light) fine-tuned on multilingual Common Voice with eSpeak phoneme labels."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-ESP-OV
+    model_key: wav2vec2_phoneme_espeak
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4
+    overlap_basis: enumerated_public_corpora_disjoint
+    evidence:
+      - url: https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft
+        summary: "Training corpora enumerated: Libri-Light (LibriVox adult audiobooks) and Common Voice (adult crowd-sourced read prompts); neither contains the RER literacy-screener recordings."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ------------------------------------------------------------------------------- facebook/wav2vec2-base-960h
+  - id: P-B960-LP
+    model_key: wav2vec2_base_960h
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: 22aad52d435eb6dbaf354bdad9b0da84ce7d6156
+    license_id: apache-2.0
+    evidence:
+      - url: https://huggingface.co/api/models/facebook/wav2vec2-base-960h
+        summary: "HF API at 22aad52: license apache-2.0, datasets [librispeech_asr], Wav2Vec2ForCTC, model.safetensors sha256 8aa76ab2..."
+      - url: https://huggingface.co/facebook/wav2vec2-base-960h
+        summary: "Card: pretrained and fine-tuned on 960 hours of LibriSpeech on 16 kHz audio; WER 3.4 / 8.6."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-B960-OV
+    model_key: wav2vec2_base_960h
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: 22aad52d435eb6dbaf354bdad9b0da84ce7d6156
+    overlap_basis: enumerated_public_corpora_disjoint
+    evidence:
+      - url: https://huggingface.co/facebook/wav2vec2-base-960h
+        summary: "Only corpus: LibriSpeech 960 h (public adult audiobook readings); disjoint from children's literacy-screener audio."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ------------------------------------------------------------------------------------ facebook/wav2vec2-base
+  - id: P-W2VB-LP
+    model_key: wav2vec2_base
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: 0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8
+    license_id: apache-2.0
+    evidence:
+      - url: https://huggingface.co/api/models/facebook/wav2vec2-base
+        summary: "HF API at 0b5b8e8: license apache-2.0, datasets [librispeech_asr], Wav2Vec2ForPreTraining, pytorch_model.bin sha256 3249fe98..."
+      - url: https://arxiv.org/abs/2006.11477
+        summary: "wav2vec 2.0 paper: BASE model pretrained on LibriSpeech 960 h (self-supervised, audio only)."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-W2VB-OV
+    model_key: wav2vec2_base
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: 0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8
+    overlap_basis: enumerated_public_corpora_disjoint
+    evidence:
+      - url: https://huggingface.co/facebook/wav2vec2-base
+        summary: "Pretraining corpus LibriSpeech 960 h (adult audiobooks) only; disjoint from the competition recordings."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ------------------------------------------------------------------------------- facebook/hubert-base-ls960
+  - id: P-HUB-LP
+    model_key: hubert_base
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: dba3bb02fda4248b6e082697eee756de8fe8aa8a
+    license_id: apache-2.0
+    evidence:
+      - url: https://huggingface.co/api/models/facebook/hubert-base-ls960
+        summary: "HF API at dba3bb0: license apache-2.0, datasets [librispeech_asr], HubertModel, pytorch_model.bin sha256 062249ff..."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "HuBERT is not named by the organisers; it is allowed under the general rule (freely available, Apache-2.0 permits commercial use)."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-HUB-OV
+    model_key: hubert_base
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: dba3bb02fda4248b6e082697eee756de8fe8aa8a
+    overlap_basis: enumerated_public_corpora_disjoint
+    evidence:
+      - url: https://arxiv.org/abs/2106.07447
+        summary: "HuBERT BASE pretrained on LibriSpeech 960 h only (ls960); disjoint from children's screener audio."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ------------------------------------------------------------------------------- microsoft/wavlm-base-plus
+  - id: P-WLM-LP
+    model_key: wavlm_base_plus
+    checks: [license, provenance]
+    decision: approved
+    revision_reviewed: 4c66d4806a428f2e922ccfa1a962776e232d487b
+    license_id: cc-by-sa-3.0
+    acknowledged_conditions: [CC-BY-SA-SHAREALIKE, WAVLM-LICENSE-AMBIGUOUS]
+    resolves: [WLM-LICENSE]
+    evidence:
+      - url: https://huggingface.co/microsoft/wavlm-base-plus
+        summary: "Card has no license metadata; README links github.com/microsoft/UniSpeech/blob/main/LICENSE as the official license."
+      - url: https://raw.githubusercontent.com/microsoft/UniSpeech/main/LICENSE
+        summary: "Linked file is Creative Commons Attribution-ShareAlike 3.0 Unported (commercial use allowed, share-alike)."
+    open_questions:
+      - "Which document governs the WEIGHTS: UniSpeech LICENSE (CC BY-SA 3.0) or unilm (MIT)? Neither says so explicitly."
+      - "Is CC BY-SA a 'permissive open license' for this competition, given winners must release under MIT? (forum ruling recommended)"
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false
+
+  - id: P-WLM-OV
+    model_key: wavlm_base_plus
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: 4c66d4806a428f2e922ccfa1a962776e232d487b
+    overlap_basis: enumerated_public_corpora_disjoint
+    evidence:
+      - url: https://huggingface.co/microsoft/wavlm-base-plus
+        summary: "Pretraining corpora enumerated: Libri-Light 60k h, GigaSpeech 10k h (podcasts/YouTube), VoxPopuli 24k h (EU Parliament); none is the RER screener; released 2021-12."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  # ---------------------------------------------------------------------------- drivendata/pasketti-phonetic
+  - id: P-PSKPH-L
+    model_key: pasketti_phonetic
+    checks: [license]
+    decision: approved
+    revision_reviewed: 675dfe392a2af7050f1374eeab4458cb1f003b3e
+    license_id: bigcode-openrail-m
+    acknowledged_conditions: [OPENRAIL-USE-RESTRICTIONS, OPENRAIL-NOT-OSI, PASKETTI-OUT-OF-SCOPE]
+    resolves: [PSK-PH-LICENSE]
+    evidence:
+      - url: https://huggingface.co/api/models/drivendata/pasketti-phonetic
+        summary: "HF API at 675dfe3: cardData.license bigcode-openrail-m, public, not gated, WavLMForCTC, model.safetensors sha256 5b3eb5a1..."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "Organisers explicitly name 'the Pasketti children's speech models' as allowed pretrained models (subject to a permissive open license)."
+    open_questions:
+      - "OpenRAIL-M is not OSI and carries use restrictions. Do you accept that the organisers' explicit naming of Pasketti satisfies the 'permissive open license' clause, or will you ask the forum first?"
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false
+
+  - id: P-PSKPH-P
+    model_key: pasketti_phonetic
+    checks: [provenance]
+    decision: approved
+    revision_reviewed: 675dfe392a2af7050f1374eeab4458cb1f003b3e
+    evidence:
+      - url: https://huggingface.co/drivendata/pasketti-phonetic
+        summary: "Card enumerates 8 phonetic corpora (incl. ReadNet), 116 h / ~1,700 children; base microsoft/wavlm-large; official DrivenData release."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: true
+
+  - id: P-PSKPH-OV
+    model_key: pasketti_phonetic
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: 675dfe392a2af7050f1374eeab4458cb1f003b3e
+    overlap_basis: acknowledged_overlap_permitted
+    resolves: [PSK-PH-READNET-OVERLAP]
+    mitigation: >-
+      ReadNet (Reach Every Reader data) is a named training corpus, so Pasketti may have seen raw recordings of these
+      children. Pasketti features are reported as a separate family; clip-level ASR accuracy on this data is never
+      claimed as out-of-sample; the reading-score model never trains on test audio; results are compared with and
+      without Pasketti features in P29.
+    evidence:
+      - url: https://huggingface.co/drivendata/pasketti-phonetic
+        summary: "Card lists ReadNet among the phonetic training corpora."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "Rules explicitly allow the Pasketti children's speech models despite the shared research programme."
+    open_questions:
+      - "Overlap is LIKELY, not ruled out. Do you accept the model under the competition's explicit permission with the mitigation above, or reject it?"
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false
+
+  # ------------------------------------------------------------------------------- drivendata/pasketti-word
+  - id: P-PSKWD-L
+    model_key: pasketti_word
+    checks: [license]
+    decision: approved
+    revision_reviewed: 7756647568342982e5f9777f1c34fdcd5fa59866
+    license_id: bigcode-openrail-m
+    acknowledged_conditions: [OPENRAIL-USE-RESTRICTIONS, OPENRAIL-NOT-OSI, PASKETTI-OUT-OF-SCOPE]
+    resolves: [PSK-WD-LICENSE]
+    evidence:
+      - url: https://huggingface.co/api/models/drivendata/pasketti-word
+        summary: "HF API at 7756647: cardData.license bigcode-openrail-m, Qwen3ASRForConditionalGeneration (qwen_asr + vLLM), model.safetensors sha256 bac33fa4..."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "Organisers explicitly name the Pasketti children's speech models as allowed."
+    open_questions:
+      - "Same OpenRAIL-M question as P-PSKPH-L."
+      - "Runtime software (vLLM, qwen_asr) must itself be under an open source license allowing commercial use if the solution wins; verify."
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false
+
+  - id: P-PSKWD-P
+    model_key: pasketti_word
+    checks: [provenance]
+    decision: approved
+    revision_reviewed: 7756647568342982e5f9777f1c34fdcd5fa59866
+    evidence:
+      - url: https://huggingface.co/drivendata/pasketti-word
+        summary: "Card names 11 corpora + 1 unnamed in-classroom corpus, 372 h / >3,600 children; base Qwen/Qwen3-ASR-1.7B."
+    open_questions:
+      - "One training corpus is unnamed ('Other' in-classroom). Accept partial enumeration?"
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false
+
+  - id: P-PSKWD-OV
+    model_key: pasketti_word
+    checks: [overlap]
+    decision: approved
+    revision_reviewed: 7756647568342982e5f9777f1c34fdcd5fa59866
+    overlap_basis: acknowledged_overlap_permitted
+    resolves: [PSK-WD-READNET-OVERLAP]
+    mitigation: >-
+      ReadNet and an unnamed classroom corpus are in the training data, so overlap with these children is possible.
+      Pasketti-word features are a separate, ablated family; its WER on this data is never reported as
+      out-of-sample; no test audio is used for training; P29 compares with and without Pasketti features.
+    evidence:
+      - url: https://huggingface.co/drivendata/pasketti-word
+        summary: "Card lists ReadNet among training corpora plus an unnamed in-classroom corpus."
+      - url: https://platform.k12-ai-infrastructure.org/competitions/4/literacy-speech-modeling/page/10/
+        summary: "Rules explicitly allow the Pasketti children's speech models."
+    open_questions:
+      - "Overlap is likely. Accept under explicit permission with the mitigation, or reject?"
+    prepared_by: "Claude (assistant draft)"
+    prepared_on: "2026-11-21"
+    ready: false

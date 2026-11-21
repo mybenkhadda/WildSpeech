@@ -1,0 +1,67 @@
+# Pre-registered V3 hypotheses. Status is set ONLY from runtime tables (outputs/V3/hypothesis_registry.csv).
+- id: V3H01
+  statement: "At least one V2 family whose reported ΔR² was exactly 0 was a silent fallback to the baseline (residual shrinkage alpha=0 or no added columns in every fold) rather than a fitted negative result."
+  family: AUDIT
+  tested_in: P23
+  rule: "fallback_fraction == 1 for the spec in fusion_audit_folds"
+  tier: confirmatory
+- id: V3H02
+  statement: "The V1 TASK_ENSEMBLE failure (R² << 0) is caused by unbounded stacking weights / extreme per-task predictions, and the repaired ensemble removes all extreme predictions."
+  family: AUDIT
+  tested_in: P23
+  rule: "extreme_frac(V1) > 0 and extreme_frac(repaired) == 0"
+  tier: confirmatory
+- id: V3H03
+  statement: "A child-specific recogniser agrees with official item correctness better than a general-purpose recogniser (clip AUROC of 1 - normalized error)."
+  family: ASR
+  tested_in: P25
+  rule: "student-block bootstrap CI of AUROC difference excludes 0"
+  tier: confirmatory
+- id: V3H04
+  statement: "Among CORRECT responses, item-adjusted phonetic confidence is associated with the screening-model residual of the end-of-year outcome (confirmation half, permutation p, FDR)."
+  family: CORRECT_ONLY
+  tested_in: P26
+  rule: "confirmatory q < fdr_alpha with same sign as discovery"
+  tier: confirmatory
+- id: V3H05
+  statement: "Phonetic features improve clip-correctness prediction beyond metadata-only and temporal-only models."
+  family: CORRECT_ONLY
+  tested_in: P26
+  rule: "ΔAUROC CI (student-block bootstrap) > 0 vs META and vs TEMPORAL"
+  tier: confirmatory
+- id: V3H06
+  statement: "Recogniser disagreement is explained more by item difficulty and recording conditions than by stable student traits."
+  family: DISAGREEMENT
+  tested_in: P27
+  rule: "share of explained variance(item+recording) > share(student)"
+  tier: exploratory
+- id: V3H07
+  statement: "A compact phonetic representation with <= 20 added features gives the largest incremental R² over the tabular GAM."
+  family: REPRESENTATION
+  tested_in: P28
+  rule: "argmax budget <= 20"
+  tier: exploratory
+- id: V3H08
+  statement: "At least one validated phonetic family adds incremental R² over the best tabular GAM (paired bootstrap CI > 0, FDR, and positive under school-grouped CV)."
+  family: READING
+  tested_in: P29
+  rule: "delta_ci_low > 0, q < alpha, delta_school > 0"
+  tier: confirmatory
+- id: V3H09
+  statement: "Correct-response-only features carry incremental information beyond official correctness counts."
+  family: READING
+  tested_in: P29
+  rule: "ASR06 delta_ci_low > 0"
+  tier: confirmatory
+- id: V3H10
+  statement: "Phonetic incremental value survives sample-rate and instrument transfer (ΔR² > 0 in transfer schemes)."
+  family: ROBUSTNESS
+  tested_in: P29
+  rule: "delta_r2 > 0 in sample_rate_transfer and instrument_transfer"
+  tier: confirmatory
+- id: V3H11
+  statement: "Negative controls (permuted features, shuffled outcome) show no incremental R² (sanity of the pipeline)."
+  family: CONTROL
+  tested_in: P29
+  rule: "negative-control delta_ci_high >= 0 >= delta_ci_low or below 0"
+  tier: confirmatory

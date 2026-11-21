@@ -1,0 +1,13 @@
+# Optional - each enables specific modules; absence is reported, never fatal.
+catboost>=1.2,<1.3
+xgboost>=2.0,<3.2
+lightgbm>=4.0,<4.7
+umap-learn>=0.5.5,<0.6
+shap>=0.44,<0.50
+webrtcvad>=2.0.10,<2.1
+pronouncing>=0.2,<0.3
+g2p_en==2.1.0
+nltk>=3.8,<4
+# torch/torchaudio: install the build matching your CUDA runtime
+torch>=2.1,<2.10
+transformers>=4.40,<4.60

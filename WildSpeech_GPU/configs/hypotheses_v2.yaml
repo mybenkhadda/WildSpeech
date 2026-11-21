@@ -1,0 +1,75 @@
+# Pre-registered V2 hypotheses (outputs/V2/hypothesis_registry.csv). Stages update status with evidence and an
+# evidence tier: exploratory (screening / discovery half), confirmatory (pre-registered rule on held-out data or
+# the frozen protocol), leaderboard (model selection). "unavailable" = the required model/data was not eligible.
+- id: V2H01
+  statement: "Bandwidth/amplitude harmonization reduces recording-domain (original sample rate) separability."
+  family: HARMONIZATION
+  tested_in: P16
+  tier: confirmatory
+  rule: "selected variant's clip-level sample-rate AUROC CI upper bound < orig variant's CI lower bound"
+- id: V2H02
+  statement: "Harmonized, item-conditioned acoustics add predictive value over the strongest tabular comparator."
+  family: HARMONIZATION
+  tested_in: P16
+  tier: confirmatory
+  rule: "best variant's paired bootstrap delta-R2 CI > 0 (repeated student-disjoint K-fold)"
+- id: V2H03
+  statement: "Audio carries correctness information beyond item metadata and task."
+  family: CORRECTNESS
+  tested_in: P17
+  tier: confirmatory
+  rule: "selected audio feature set's clip-level AUROC gain over metadata-only has student-block CI > 0"
+- id: V2H04
+  statement: "Nested cross-fitted soft-correctness features improve student-level R2 over the comparator."
+  family: CORRECTNESS
+  tested_in: P17
+  tier: confirmatory
+  rule: "delta-R2 CI > 0 (repeated K-fold)"
+- id: V2H05
+  statement: "Expected-text-conditioned phonetic features improve student-level R2 over the comparator."
+  family: PHONETIC
+  tested_in: P18
+  tier: confirmatory
+  rule: "PHON delta-R2 CI > 0 (repeated K-fold)"
+- id: V2H06
+  statement: "Phonetic quality varies among officially correct responses and relates to unexplained outcome."
+  family: PHONETIC
+  tested_in: P18
+  tier: confirmatory
+  rule: ">= 1 correct-only feature: discovery-half top-k, confirmation-half permutation q < 0.05 with the same sign"
+- id: V2H07
+  statement: "Reference-conditioned deviations improve student-level R2 over the comparator."
+  family: REFERENCE
+  tested_in: P19
+  tier: confirmatory
+  rule: "REF delta-R2 CI > 0 (repeated K-fold)"
+- id: V2H08
+  statement: "Deviation from comparable correct responses carries information beyond binary correctness."
+  family: REFERENCE
+  tested_in: P19
+  tier: confirmatory
+  rule: ">= 1 correct-only deviation feature replicates in the confirmation half (q < 0.05, same sign)"
+- id: V2H09
+  statement: "A compact foundation-model representation improves student-level R2 over the comparator."
+  family: FOUNDATION
+  tested_in: P20
+  tier: confirmatory
+  rule: "best evaluated layer's delta-R2 CI > 0"
+- id: V2H10
+  statement: "Intermediate encoder layers are more correctness-informative than the final layer."
+  family: FOUNDATION
+  tested_in: P20
+  tier: exploratory
+  rule: "best layer < last layer and AUROC difference > 0.01"
+- id: V2H11
+  statement: "At least one V2 representation has genuine incremental value over the strongest tabular comparator."
+  family: MULTIMODAL
+  tested_in: P21
+  tier: confirmatory
+  rule: "family delta-R2 CI > 0, FDR q < alpha across families, positive under school-grouped validation"
+- id: V2H12
+  statement: "Small feature budgets (<= 20 added features) are at least as good as large ones."
+  family: MULTIMODAL
+  tested_in: P21
+  tier: exploratory
+  rule: "budget with the highest delta-R2 is <= 20"

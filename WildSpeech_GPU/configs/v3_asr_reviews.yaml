@@ -1,0 +1,31 @@
+# WildSpeech V3 — manual ASR model reviews (the ONLY place approvals live).
+#
+# Write entries with the validating CLI (it refuses incomplete evidence and never edits the model registry):
+#
+#   python -m wildspeech.asr.reviews record --model whisper_small_en --checks license provenance overlap `
+#       --decision approved --reviewer "<your name>" --revision <commit sha you reviewed> `
+#       --evidence-url https://huggingface.co/openai/whisper-small.en `
+#       --summary "Card at <sha>: license apache-2.0; trained on web audio; no private literacy assessments" `
+#       --resolves WSP-OVERLAP
+#
+#   python -m wildspeech.asr.reviews show                      # every entry + whether it currently validates
+#   python -m wildspeech.asr.reviews board                     # per model/check: decision + what is still open
+#   python -m wildspeech.asr.reviews commands                  # exact accept / reject / defer commands per open check
+#
+# Document an UNRESOLVED case (approves nothing; the check stays PENDING and the board shows your question):
+#
+#   python -m wildspeech.asr.reviews defer --model pasketti_phonetic --checks overlap `
+#       --reviewer "<your name>" --revision 675dfe392a2af7050f1374eeab4458cb1f003b3e `
+#       --outstanding "ReadNet (Reach Every Reader) is a Pasketti training corpus; awaiting an organiser ruling"
+#
+# Rules enforced on every pipeline run (wildspeech.asr.reviews.validate_entry):
+#   * decision approved | rejected | deferred; a rejected review FAILS the check, a deferred one keeps it PENDING
+#     (latest valid entry per check wins)
+#   * reviewer, ISO date (not in the future), revision_reviewed and >= 1 evidence item (https URL or existing file
+#     + a non-empty summary of what was verified) are mandatory
+#   * the review must cover the checkpoint revision actually on disk / pinned in the registry
+#   * a license review must name the same license_id as the registry evidence, and it must be in allowed_licenses
+#   * blocking restrictions stay open unless an approved review of the same check lists the id under `resolves`
+# Hand edits are allowed but are validated exactly the same way.
+
+reviews: []

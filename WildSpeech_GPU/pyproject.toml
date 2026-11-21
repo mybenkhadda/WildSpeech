@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wildspeech"
+version = "2.0.0"
+description = "Local GPU-accelerated research pipeline for literacy prediction from child speech"
+requires-python = ">=3.10"
+
+[project.scripts]
+wildspeech = "wildspeech.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+markers = ["gpu: requires a CUDA device (skipped otherwise)",
+           "integration: end-to-end V2 pipeline on a synthetic project (minutes on CPU)"]

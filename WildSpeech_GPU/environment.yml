@@ -1,0 +1,36 @@
+# Reference environment. To reuse your existing env instead: conda activate MITSUI, then follow README §2.
+name: MITSUI
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy>=1.26,<2.3
+  - pandas>=2.1
+  - scipy>=1.11
+  - scikit-learn>=1.4
+  - pyarrow>=14
+  - pyyaml
+  - tqdm
+  - psutil
+  - matplotlib>=3.8
+  - pysoundfile
+  - pywavelets
+  - joblib
+  - lightgbm
+  - xgboost
+  - catboost
+  - pytest
+  - jupyterlab
+  - ipykernel
+  - jupyter_client<8.10        # avoids the ipykernel install failure seen on Python 3.11 conda builds
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu124
+      - torch==2.5.1+cu124      # driver 581.80 (CUDA 13.0) runs any CUDA 12.x build
+      - torchaudio==2.5.1+cu124
+      - soxr>=0.3
+      - umap-learn>=0.5
+      - pygam>=0.9
+      - transformers>=4.41,<5
+      - g2p_en>=2.1
+      - markdown>=3.5

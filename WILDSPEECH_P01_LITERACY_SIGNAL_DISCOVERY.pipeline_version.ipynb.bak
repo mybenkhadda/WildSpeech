@@ -1,0 +1,1107 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# WILDSPEECH P01 — Literacy Signal Discovery\n",
+    "\n",
+    "Problem-oriented discovery of literacy-related signal in anonymised child speech, from data integrity to a validated feature-discovery and hypothesis registry.\n",
+    "\n",
+    "**Local run.** Kernel: `WildSpeech (py3.10)` (conda env `wildspeech`). The package lives in `WildSpeech_code/src/wildspeech`, the data in `data/`, and outputs go to `WildSpeech_outputs/`. Run the setup and configuration cells, then each section cell in order (dependencies are resolved automatically and finished stages are resumed from cache). No data is sent to external APIs."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Setup"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "import sys\n",
+    "from pathlib import Path\n",
+    "\n",
+    "# Project root = the folder that contains this notebook, WildSpeech_code/ and data/\n",
+    "PROJECT_ROOT = next(p for p in [Path.cwd(), *Path.cwd().parents] if (p / \"WildSpeech_code\").is_dir())\n",
+    "CODE_ROOT = PROJECT_ROOT / \"WildSpeech_code\"\n",
+    "DATA_ROOT = PROJECT_ROOT / \"data\"\n",
+    "OUTPUT_ROOT = PROJECT_ROOT / \"WildSpeech_outputs\"\n",
+    "\n",
+    "if str(CODE_ROOT / \"src\") not in sys.path:\n",
+    "    sys.path.insert(0, str(CODE_ROOT / \"src\"))\n",
+    "\n",
+    "%load_ext autoreload\n",
+    "%autoreload 2\n",
+    "\n",
+    "from IPython.display import display\n",
+    "from wildspeech.environment import detect_environment\n",
+    "from wildspeech.pipeline import Pipeline, build_context\n",
+    "\n",
+    "print(\"PROJECT_ROOT =\", PROJECT_ROOT)\n",
+    "print(\"DATA_ROOT    =\", DATA_ROOT, \"| files:\", sorted(p.name for p in DATA_ROOT.iterdir()))\n",
+    "print(\"environment  =\", detect_environment())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Configuration"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "CONFIG = {\n",
+    "    \"project_name\": \"WildSpeech\",\n",
+    "    \"experiment_name\": \"P01_LITERACY_SIGNAL_DISCOVERY\",\n",
+    "\n",
+    "    # ---- local storage (overrides the Colab defaults in configs/p01_config.yaml)\n",
+    "    \"environment\": detect_environment(),      # LOCAL_WINDOWS here\n",
+    "    \"cloud_storage_authorized\": False,\n",
+    "    \"data_root\": str(DATA_ROOT),\n",
+    "    \"output_root\": str(OUTPUT_ROOT),\n",
+    "    \"local_root\": str(OUTPUT_ROOT),\n",
+    "    \"mount_drive\": False,\n",
+    "\n",
+    "    \"run_mode\": \"FULL\",          # SMOKE | DEBUG | FAST | FULL | RESEARCH | RESUME\n",
+    "    \"seed\": 42,\n",
+    "    \"use_gpu\": True,             # only used if torch + CUDA are available\n",
+    "    \"n_jobs\": -1,\n",
+    "\n",
+    "    \"sample_rate\": 16000,\n",
+    "    \"audio_batch_size\": 64,\n",
+    "    \"debug_max_students\": 30,\n",
+    "    \"debug_max_clips\": 300,\n",
+    "\n",
+    "    \"extract_train_audio\": True,\n",
+    "    \"extract_test_audio\": False,\n",
+    "\n",
+    "    \"train_only_eda\": True,\n",
+    "    \"allow_test_inference\": False,\n",
+    "    \"allow_external_apis\": False,\n",
+    "\n",
+    "    \"enable_tabular_eda\": True,\n",
+    "    \"enable_item_analysis\": True,\n",
+    "    \"enable_irt\": True,\n",
+    "    \"enable_acoustic_features\": True,\n",
+    "    \"enable_vad\": True,\n",
+    "    \"enable_wavelets\": True,\n",
+    "    \"enable_prosody\": True,\n",
+    "    \"enable_phonetic_analysis\": False,\n",
+    "    \"enable_asr\": False,\n",
+    "    \"enable_embeddings\": False,\n",
+    "    \"enable_student_clustering\": True,\n",
+    "    \"enable_residual_analysis\": True,\n",
+    "    \"enable_confound_analysis\": True,\n",
+    "    \"enable_feature_interactions\": True,\n",
+    "    \"enable_baseline_models\": True,\n",
+    "    \"enable_failure_analysis\": True,\n",
+    "    \"enable_submission\": False,\n",
+    "\n",
+    "    \"cv_folds\": 5,\n",
+    "    \"cv_repeats\": 3,\n",
+    "    \"bootstrap_iterations\": 1000,\n",
+    "    \"fdr_alpha\": 0.05,\n",
+    "\n",
+    "    \"resume\": True,\n",
+    "    \"overwrite_cache\": False,\n",
+    "\n",
+    "    \"save_figures\": True,\n",
+    "    \"save_tables\": True,\n",
+    "    \"save_html_report\": True,\n",
+    "    \"figure_dpi\": 160,\n",
+    "    \"max_features_for_heatmap\": 60,\n",
+    "}\n",
+    "# Advanced overrides (see configs/p01_config.yaml for every key), e.g.\n",
+    "# CONFIG[\"schema_overrides\"] = {\"clip\": {\"task\": \"task_name\"}}\n",
+    "PROFILE = CONFIG[\"run_mode\"]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "ctx = build_context(CONFIG, profile=PROFILE, yaml_path=CODE_ROOT / \"configs\" / \"p01_config.yaml\")\n",
+    "pipe = Pipeline(ctx)\n",
+    "\n",
+    "\n",
+    "def run_section(stage_id, include_dependencies=True):\n",
+    "    report = pipe.run([stage_id], include_dependencies=include_dependencies)\n",
+    "    display(report)\n",
+    "    return report\n",
+    "\n",
+    "\n",
+    "display(pipe.status_table())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 00 — Environment initialization\n",
+    "\n",
+    "**Research question.** Is the runtime authorised, correctly configured and able to locate the data?\n",
+    "\n",
+    "**Motivation.** Reproducibility and data-use compliance.\n",
+    "\n",
+    "**Inputs.** CONFIG, Drive folder\n",
+    "\n",
+    "**Methodology.** Environment detection, Drive mount (Colab, authorised only), recursive data discovery with duplicate detection, hardware/GPU/package diagnostics, seeds.\n",
+    "\n",
+    "**Configuration.** `environment, cloud_storage_authorized, data_root, use_gpu, n_jobs, seed`\n",
+    "\n",
+    "**Outputs.** environment_report.json, required_file_inventory.csv\n",
+    "\n",
+    "**Interpretation.** Confirms where data was found and which optional modules can run.\n",
+    "\n",
+    "**Limitations.** Package availability ≠ functional correctness."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_00_report = run_section(\"00\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 01 — Data integrity and hierarchical reconstruction\n",
+    "\n",
+    "**Research question.** Can the dataset be represented reliably at student, task, item, clip and frame level?\n",
+    "\n",
+    "**Motivation.** Every later analysis depends on correct joins.\n",
+    "\n",
+    "**Inputs.** All CSVs, read kwargs JSON, TAR archives (inspected, not extracted)\n",
+    "\n",
+    "**Methodology.** Runtime schema resolution with ambiguity detection, ID uniqueness, join-key inference, duplicates/conflicts, train-test overlap, archive safety, clip-audio matching, audio metadata, student-level sampling.\n",
+    "\n",
+    "**Configuration.** `schema_overrides, task_family_overrides, audio_inventory_decode`\n",
+    "\n",
+    "**Outputs.** student_master, clip_master, task_master, item_master, audio_manifest, schema_registry, data_quality_report\n",
+    "\n",
+    "**Interpretation.** Review warnings and ambiguity before proceeding.\n",
+    "\n",
+    "**Limitations.** Test audio headers decoded only when test inference is allowed."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_01_report = run_section(\"01\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 02 — Target variable intelligence\n",
+    "\n",
+    "**Research question.** What determines the distribution and predictability of the outcome?\n",
+    "\n",
+    "**Motivation.** Instrument and school effects can masquerade as signal.\n",
+    "\n",
+    "**Inputs.** student_master\n",
+    "\n",
+    "**Methodology.** Robust summaries, outliers, floor/ceiling, GMM modality, instrument/school comparisons, variance decomposition, heteroscedasticity.\n",
+    "\n",
+    "**Configuration.** `min_group_size`\n",
+    "\n",
+    "**Outputs.** target_summary.json, target_* tables, figures\n",
+    "\n",
+    "**Interpretation.** Instruments are compared, never assumed interchangeable.\n",
+    "\n",
+    "**Limitations.** Descriptive only."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_02_report = run_section(\"02\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 03 — Screening intelligence\n",
+    "\n",
+    "**Research question.** How much of the outcome does conventional screening explain?\n",
+    "\n",
+    "**Motivation.** Defines the baseline every new signal must beat.\n",
+    "\n",
+    "**Inputs.** student_master\n",
+    "\n",
+    "**Methodology.** Linear/rank/MI/distance correlations, spline vs linear CV R², partial correlations, conditional distributions, group-conditioned (shrunk) correlations, PCA, missingness, derived features.\n",
+    "\n",
+    "**Configuration.** `min_n_correlation`\n",
+    "\n",
+    "**Outputs.** screening_features, screening_associations, figures\n",
+    "\n",
+    "**Interpretation.** theta_common_factor is refitted inside folds for prediction.\n",
+    "\n",
+    "**Limitations.** Profiles are descriptive."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_03_report = run_section(\"03\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 04 — Item intelligence and IRT\n",
+    "\n",
+    "**Research question.** Are some items substantially more informative?\n",
+    "\n",
+    "**Motivation.** Adaptive exposure makes raw accuracy misleading.\n",
+    "\n",
+    "**Inputs.** clip_master correctness\n",
+    "\n",
+    "**Methodology.** Exposure, smoothed difficulty, rest-score discrimination, outcome association (raw and given theta), redundancy, Rasch/1PL/2PL with BIC selection and SEs.\n",
+    "\n",
+    "**Configuration.** `enable_irt, irt_*`\n",
+    "\n",
+    "**Outputs.** item_registry, irt_item_params, irt_student_features\n",
+    "\n",
+    "**Interpretation.** All-training parameters are EDA only.\n",
+    "\n",
+    "**Limitations.** 2PL only when identifiable."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_04_report = run_section(\"04\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 05 — Adaptive behaviour trajectories\n",
+    "\n",
+    "**Research question.** Do response patterns add information beyond the final score?\n",
+    "\n",
+    "**Motivation.** Streaks, recovery and stopping difficulty may reflect learning dynamics.\n",
+    "\n",
+    "**Inputs.** clip_master order/timestamp\n",
+    "\n",
+    "**Methodology.** Order validity check; streaks, recovery, early/late accuracy, difficulty and duration slopes, entropy, volatility.\n",
+    "\n",
+    "**Configuration.** `—`\n",
+    "\n",
+    "**Outputs.** order_validity, trajectory_features\n",
+    "\n",
+    "**Interpretation.** Disabled with a reason if no reliable order exists.\n",
+    "\n",
+    "**Limitations.** Dataframe order is never used."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_05_report = run_section(\"05\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 06 — Acoustic quality atlas and unified extraction\n",
+    "\n",
+    "**Research question.** How reliable is the acoustic information, and what does it contain?\n",
+    "\n",
+    "**Motivation.** Quality defines which signals can be trusted.\n",
+    "\n",
+    "**Inputs.** TAR archives\n",
+    "\n",
+    "**Methodology.** Safe extraction (or streaming), single decode per clip, shared STFT/mel/MFCC/VAD bundle, quality/temporal/spectral/wavelet/prosody features, chunked resumable parallel extraction, stratified atlas.\n",
+    "\n",
+    "**Configuration.** `sample_rate, n_fft, hop_length, vad_*, extraction_chunk_size, atlas_*`\n",
+    "\n",
+    "**Outputs.** clip_features, vad_segments, audio_quality_*\n",
+    "\n",
+    "**Interpretation.** VAD marks speech-like regions, not the child.\n",
+    "\n",
+    "**Limitations.** SNR and noise floor are approximations."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_06_report = run_section(\"06\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 07 — Temporal and fluency intelligence\n",
+    "\n",
+    "**Research question.** Does response organisation predict later reading?\n",
+    "\n",
+    "**Motivation.** Fluency is a core reading component.\n",
+    "\n",
+    "**Inputs.** clip_features\n",
+    "\n",
+    "**Methodology.** Within-item correctness associations, item/student ICC, complexity and difficulty relations, student-level raw/residual/partial associations, complexity-duration surfaces, shrunk complexity sensitivity.\n",
+    "\n",
+    "**Configuration.** `short_pause_s, long_pause_s`\n",
+    "\n",
+    "**Outputs.** temporal_family_report, complexity_sensitivity_estimates\n",
+    "\n",
+    "**Interpretation.** Initial silence is not a verified reaction time.\n",
+    "\n",
+    "**Limitations.** Observational."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_07_report = run_section(\"07\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 08 — Spectral and spectrotemporal intelligence\n",
+    "\n",
+    "**Research question.** Do frequency-domain properties carry literacy signal?\n",
+    "\n",
+    "**Motivation.** Articulation precision may be visible spectrally.\n",
+    "\n",
+    "**Inputs.** clip_features\n",
+    "\n",
+    "**Methodology.** Same family engine for speech-active, full and background regions plus MFCC dynamics, controlling for quality.\n",
+    "\n",
+    "**Configuration.** `spectral_robust_stats, enable_hpss, enable_chroma`\n",
+    "\n",
+    "**Outputs.** spectral_family_report\n",
+    "\n",
+    "**Interpretation.** Background-region features are negative controls.\n",
+    "\n",
+    "**Limitations.** Voice conversion may alter spectra."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_08_report = run_section(\"08\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 09 — Wavelet multiscale discovery\n",
+    "\n",
+    "**Research question.** Do multiscale transients add signal?\n",
+    "\n",
+    "**Motivation.** Transitions may be localised in time-frequency.\n",
+    "\n",
+    "**Inputs.** clip_features\n",
+    "\n",
+    "**Methodology.** DWT/WPD/CWT summaries with adaptive depth; correct vs incorrect, same-item ICC, ability, outcome and matched-residual comparisons.\n",
+    "\n",
+    "**Configuration.** `wavelet_*, cwt_*`\n",
+    "\n",
+    "**Outputs.** wavelet_family_report, multiscale_comparisons\n",
+    "\n",
+    "**Interpretation.** Continuous and discrete families are kept separate.\n",
+    "\n",
+    "**Limitations.** High computational cost."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_09_report = run_section(\"09\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 10 — Prosody and anonymisation robustness\n",
+    "\n",
+    "**Research question.** Which features survive voice conversion?\n",
+    "\n",
+    "**Motivation.** Anonymisation changes physiological voice measures.\n",
+    "\n",
+    "**Inputs.** clip_features\n",
+    "\n",
+    "**Methodology.** Prosody family analysis plus sensitivity classification of all clip features.\n",
+    "\n",
+    "**Configuration.** `enable_prosody, f0_*, sensitivity_*`\n",
+    "\n",
+    "**Outputs.** prosody_family_report, anonymization_sensitivity\n",
+    "\n",
+    "**Interpretation.** No identity, age, sex or medical inference.\n",
+    "\n",
+    "**Limitations.** Classification is heuristic."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_10_report = run_section(\"10\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 11 — Linguistic and phonetic intelligence\n",
+    "\n",
+    "**Research question.** Do expected-vs-produced speech deviations matter?\n",
+    "\n",
+    "**Motivation.** Phonological processing is central to literacy.\n",
+    "\n",
+    "**Inputs.** item_master, audio (ASR optional)\n",
+    "\n",
+    "**Methodology.** Local G2P complexity features; optional licensed local ASR with word/char/phone alignment, confidences, CTC expected likelihood, confusions.\n",
+    "\n",
+    "**Configuration.** `enable_linguistic_features, enable_phonetic_analysis, enable_asr, asr_models`\n",
+    "\n",
+    "**Outputs.** item_linguistic_features, clip_phonetic_features\n",
+    "\n",
+    "**Interpretation.** ASR disagreement is an uncertain proxy.\n",
+    "\n",
+    "**Limitations.** Child-speech ASR error rates are high."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_11_report = run_section(\"11\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 12 — Task-specific intelligence\n",
+    "\n",
+    "**Research question.** Which tasks carry the strongest information?\n",
+    "\n",
+    "**Motivation.** Blending, deletion and repetition tap different processes.\n",
+    "\n",
+    "**Inputs.** student_features, residuals\n",
+    "\n",
+    "**Methodology.** Task relevance matrix and task-specific analyses (deletion categories only with known source and operation).\n",
+    "\n",
+    "**Configuration.** `—`\n",
+    "\n",
+    "**Outputs.** task_relevance_matrix, task_specific_report\n",
+    "\n",
+    "**Interpretation.** Signals are |rho| summaries.\n",
+    "\n",
+    "**Limitations.** Association level."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_12_report = run_section(\"12\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 13 — Student-level aggregation\n",
+    "\n",
+    "**Research question.** How should clips become a student representation?\n",
+    "\n",
+    "**Motivation.** The target is student-level; clips are not independent examples.\n",
+    "\n",
+    "**Inputs.** clip tables, tabular features\n",
+    "\n",
+    "**Methodology.** Global/core robust stats, conditional (task, correctness, difficulty, complexity, quality, length, activity, stage, confidence), cross-task, contrasts, shrunk slopes, item-adjusted features, missingness indicators.\n",
+    "\n",
+    "**Configuration.** `aggregation_*, item_shrinkage_k, slope_shrinkage_k`\n",
+    "\n",
+    "**Outputs.** student_features, aggregation_report\n",
+    "\n",
+    "**Interpretation.** __diff= columns are EDA only.\n",
+    "\n",
+    "**Limitations.** Large feature space; selection must be nested."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_13_report = run_section(\"13\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 14 — Validation framework and screening baselines\n",
+    "\n",
+    "**Research question.** How much variance does screening explain under honest CV?\n",
+    "\n",
+    "**Motivation.** Defines residuals and the reference for all deltas.\n",
+    "\n",
+    "**Inputs.** screening_features\n",
+    "\n",
+    "**Methodology.** Five CV schemes, M00–M06 models with in-pipeline preprocessing, pooled and mean-fold metrics, bootstrap CIs, school metrics, OOF residuals.\n",
+    "\n",
+    "**Configuration.** `cv_folds, cv_repeats, primary_baseline`\n",
+    "\n",
+    "**Outputs.** cv_assignments, baseline_results, baseline_residuals\n",
+    "\n",
+    "**Interpretation.** Residual = observed − OOF screening prediction.\n",
+    "\n",
+    "**Limitations.** Unavailable schemes reported."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_14_report = run_section(\"14\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 15 — Student phenotype atlas\n",
+    "\n",
+    "**Research question.** Are there distinct multimodal profiles?\n",
+    "\n",
+    "**Motivation.** Similar screening scores may hide different profiles.\n",
+    "\n",
+    "**Inputs.** student_features\n",
+    "\n",
+    "**Methodology.** C01–C10 spaces, PCA, k-means/GMM/Ward/spectral/HDBSCAN, internal metrics, bootstrap ARI, composition, characterisation.\n",
+    "\n",
+    "**Configuration.** `cluster_*`\n",
+    "\n",
+    "**Outputs.** cluster_assignments, cluster_evaluation, cluster_profiles\n",
+    "\n",
+    "**Interpretation.** Clusters never use the target.\n",
+    "\n",
+    "**Limitations.** Descriptive."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_15_report = run_section(\"15\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 16 — Residual signal discovery\n",
+    "\n",
+    "**Research question.** What predicts outcome beyond screening?\n",
+    "\n",
+    "**Motivation.** Central scientific question.\n",
+    "\n",
+    "**Inputs.** student_features, baseline_residuals\n",
+    "\n",
+    "**Methodology.** Raw/residual/partial correlations, adjusted cluster-robust regressions, FDR, cluster bootstrap, within-school permutations, held-out half replication, matched comparisons.\n",
+    "\n",
+    "**Configuration.** `fdr_alpha, discovery_*, matching_calipers, permutation_*`\n",
+    "\n",
+    "**Outputs.** residual_associations, residual_family_ranking, matched_*\n",
+    "\n",
+    "**Interpretation.** Associations are not causal.\n",
+    "\n",
+    "**Limitations.** Selection optimism outside replication."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_16_report = run_section(\"16\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 17 — Confounding and robustness\n",
+    "\n",
+    "**Research question.** Are signals genuine or technical shortcuts?\n",
+    "\n",
+    "**Motivation.** Recording environment can leak outcome information.\n",
+    "\n",
+    "**Inputs.** student_features, residuals\n",
+    "\n",
+    "**Methodology.** Negative controls NC01–NC07 (grouped shuffles), region comparisons, school separability, confound matrix, sign consistency, subgroup performance, generalisation gap.\n",
+    "\n",
+    "**Configuration.** `min_group_size`\n",
+    "\n",
+    "**Outputs.** negative_controls, school_separability, confound_matrix\n",
+    "\n",
+    "**Interpretation.** Compare speech vs technical deltas.\n",
+    "\n",
+    "**Limitations.** Speaker roles are not identified."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_17_report = run_section(\"17\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 18 — Feature interactions\n",
+    "\n",
+    "**Research question.** Do features matter only for particular profiles?\n",
+    "\n",
+    "**Motivation.** Signals may be conditional on ability or task.\n",
+    "\n",
+    "**Inputs.** student_features\n",
+    "\n",
+    "**Methodology.** Predefined candidates, fold-fitted representatives, OOF delta R², MI, conditional associations, Friedman H, partial dependence, optional SHAP.\n",
+    "\n",
+    "**Configuration.** `interaction_candidates`\n",
+    "\n",
+    "**Outputs.** interaction_results\n",
+    "\n",
+    "**Interpretation.** No unrestricted all-pairs search.\n",
+    "\n",
+    "**Limitations.** Multiplicity across candidates."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_18_report = run_section(\"18\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 19 — Experimental literacy indices\n",
+    "\n",
+    "**Research question.** Do interpretable composites help?\n",
+    "\n",
+    "**Motivation.** Composites may be more stable and interpretable.\n",
+    "\n",
+    "**Inputs.** student_features\n",
+    "\n",
+    "**Methodology.** L01–L15 with declared directions, train-fitted robust scaling, reliability, residual association, incremental CV, cross-school stability.\n",
+    "\n",
+    "**Configuration.** `index_min_components`\n",
+    "\n",
+    "**Outputs.** literacy_indices, literacy_index_report\n",
+    "\n",
+    "**Interpretation.** Experimental constructs.\n",
+    "\n",
+    "**Limitations.** irt_/ia_ components use EDA versions here (A14 is fold-fitted)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_19_report = run_section(\"19\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 20 — Predictive ablation\n",
+    "\n",
+    "**Research question.** Which modalities add predictive value?\n",
+    "\n",
+    "**Motivation.** Controlled comparison of feature families.\n",
+    "\n",
+    "**Inputs.** student_features, cv_assignments\n",
+    "\n",
+    "**Methodology.** A00–A23 under student and school-grouped CV, paired bootstrap deltas, leave-one-family-out, pairwise complementarity, nested forward selection, redundancy.\n",
+    "\n",
+    "**Configuration.** `ablation_*`\n",
+    "\n",
+    "**Outputs.** ablation_results, ablation_oof_predictions\n",
+    "\n",
+    "**Interpretation.** Deltas with CIs, not single scores.\n",
+    "\n",
+    "**Limitations.** Expensive in FULL mode."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_20_report = run_section(\"20\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 21 — Nested residual learning\n",
+    "\n",
+    "**Research question.** Does two-stage residual learning beat direct regression?\n",
+    "\n",
+    "**Motivation.** Residual correction can isolate incremental acoustic value.\n",
+    "\n",
+    "**Inputs.** student_features\n",
+    "\n",
+    "**Methodology.** Nested inner-OOF residual targets, inner-selected alpha, refit, outer evaluation; compared with direct and nested blending.\n",
+    "\n",
+    "**Configuration.** `residual_fusion_alphas, inner_cv_folds`\n",
+    "\n",
+    "**Outputs.** residual_learning_results\n",
+    "\n",
+    "**Interpretation.** Alpha never sees outer outcomes.\n",
+    "\n",
+    "**Limitations.** —"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_21_report = run_section(\"21\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 22 — Failure phenotype atlas\n",
+    "\n",
+    "**Research question.** Which students are hard to predict, and why?\n",
+    "\n",
+    "**Motivation.** Failures point to missing information.\n",
+    "\n",
+    "**Inputs.** OOF predictions\n",
+    "\n",
+    "**Methodology.** Failure registry, rule-based F01–F12 flags, empirical failure clusters, recovery by phenotype.\n",
+    "\n",
+    "**Configuration.** `—`\n",
+    "\n",
+    "**Outputs.** failure_registry, failure_summary\n",
+    "\n",
+    "**Interpretation.** Descriptive, not diagnoses.\n",
+    "\n",
+    "**Limitations.** Regression to the mean."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_22_report = run_section(\"22\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 23 — Foundation-model exploration (optional)\n",
+    "\n",
+    "**Research question.** Do pretrained representations add information?\n",
+    "\n",
+    "**Motivation.** Frozen encoders may capture complementary structure.\n",
+    "\n",
+    "**Inputs.** audio, vad_segments\n",
+    "\n",
+    "**Methodology.** Licensed local frozen encoders, layer selection, mean/std/quantile/speech-active pooling, PCA, task/student pooling, OOM recovery.\n",
+    "\n",
+    "**Configuration.** `enable_embeddings, embedding_models`\n",
+    "\n",
+    "**Outputs.** embedding_student_features\n",
+    "\n",
+    "**Interpretation.** Requires verified licence and overlap checks.\n",
+    "\n",
+    "**Limitations.** Disabled by default."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_23_report = run_section(\"23\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 24 — Feature discovery registry\n",
+    "\n",
+    "**Research question.** Which features carry robust signal?\n",
+    "\n",
+    "**Motivation.** Separate evidence rankings instead of one importance score.\n",
+    "\n",
+    "**Inputs.** all features and evidence\n",
+    "\n",
+    "**Methodology.** Per-feature provenance, associations, FDR, CIs, CV gains, stability, redundancy, confound risk, sensitivity, classification.\n",
+    "\n",
+    "**Configuration.** `feature_registry_*`\n",
+    "\n",
+    "**Outputs.** feature_registry, feature_ranking_*\n",
+    "\n",
+    "**Interpretation.** Statuses follow explicit rules.\n",
+    "\n",
+    "**Limitations.** Top-K CV only."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_24_report = run_section(\"24\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 25 — Hypothesis registry\n",
+    "\n",
+    "**Research question.** Which hypotheses are supported?\n",
+    "\n",
+    "**Motivation.** Explicit scientific accountability.\n",
+    "\n",
+    "**Inputs.** registries and ablations\n",
+    "\n",
+    "**Methodology.** H01–H20 evaluated programmatically with conservative status rules.\n",
+    "\n",
+    "**Configuration.** `—`\n",
+    "\n",
+    "**Outputs.** hypothesis_registry\n",
+    "\n",
+    "**Interpretation.** SUPPORTED requires OOF CI > 0 and grouped confirmation.\n",
+    "\n",
+    "**Limitations.** NOT_TESTED when artifacts are missing."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_25_report = run_section(\"25\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 26 — Visual atlas\n",
+    "\n",
+    "**Research question.** Where are all figures?\n",
+    "\n",
+    "**Motivation.** Navigation of results.\n",
+    "\n",
+    "**Inputs.** figure_index.csv\n",
+    "\n",
+    "**Methodology.** Dataset diagrams and an HTML gallery grouped into five atlases.\n",
+    "\n",
+    "**Configuration.** `save_figures`\n",
+    "\n",
+    "**Outputs.** P01_VISUAL_ATLAS.html\n",
+    "\n",
+    "**Interpretation.** Local file only.\n",
+    "\n",
+    "**Limitations.** —"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_26_report = run_section(\"26\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 27 — Submission (disabled by default)\n",
+    "\n",
+    "**Research question.** Can a validated submission be produced safely?\n",
+    "\n",
+    "**Motivation.** Competition deliverable.\n",
+    "\n",
+    "**Inputs.** train/test features\n",
+    "\n",
+    "**Methodology.** Train-only fitting, per-student test features, order-preserving format validation, provenance.\n",
+    "\n",
+    "**Configuration.** `enable_submission, allow_test_inference, submission_*`\n",
+    "\n",
+    "**Outputs.** submissions/*.csv\n",
+    "\n",
+    "**Interpretation.** Never uploaded automatically.\n",
+    "\n",
+    "**Limitations.** Requires test processing."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_27_report = run_section(\"27\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Section 28 — Final scientific report\n",
+    "\n",
+    "**Research question.** What did P01 find?\n",
+    "\n",
+    "**Motivation.** Programmatic synthesis.\n",
+    "\n",
+    "**Inputs.** all artifacts\n",
+    "\n",
+    "**Methodology.** Answers 18 questions from artifacts, writes P01_* deliverables and HTML report.\n",
+    "\n",
+    "**Configuration.** `save_html_report`\n",
+    "\n",
+    "**Outputs.** P01_EXECUTIVE_SUMMARY.md, P01_SCIENTIFIC_REPORT.html, …\n",
+    "\n",
+    "**Interpretation.** Skipped/failed sections are stated.\n",
+    "\n",
+    "**Limitations.** No fabricated findings."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "section_28_report = run_section(\"28\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Run status"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "execution_count": null,
+   "outputs": [],
+   "source": [
+    "display(pipe.status_table())"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "WildSpeech (py3.10)",
+   "language": "python",
+   "name": "wildspeech"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.10"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

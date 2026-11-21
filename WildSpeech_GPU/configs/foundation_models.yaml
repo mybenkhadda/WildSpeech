@@ -1,0 +1,102 @@
+# Local foundation-model registry. The pipeline NEVER downloads by default (runtime.allow_model_download=false,
+# hf_local_files_only=true). A model is used only if `license_verified: true` AND `overlap_checked: true`
+# have been set by you after reading its model card. Fill `local_path` if you keep snapshots outside the HF cache.
+#
+# overlap_checked: confirm the model was not trained on this competition's restricted recordings
+# (none of the public checkpoints below list it; child-speech models must be checked individually).
+
+wav2vec2_base:
+  hf_id: facebook/wav2vec2-base
+  kind: ssl_encoder
+  license: apache-2.0
+  training_data: "LibriSpeech 960h (unlabelled), adult read speech"
+  child_speech: false
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+hubert_base:
+  hf_id: facebook/hubert-base-ls960
+  kind: ssl_encoder
+  license: apache-2.0
+  training_data: "LibriSpeech 960h, adult read speech"
+  child_speech: false
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+wavlm_base_plus:
+  hf_id: microsoft/wavlm-base-plus
+  kind: ssl_encoder
+  license: "microsoft research license (see model card) — verify competition eligibility"
+  training_data: "Libri-Light, GigaSpeech, VoxPopuli (94k h), adult speech"
+  child_speech: false
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+whisper_base:
+  hf_id: openai/whisper-base
+  kind: whisper_encoder
+  license: apache-2.0
+  training_data: "680k h weakly supervised web audio (may include some child speech; not this dataset)"
+  child_speech: unknown
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+whisper_small_en:
+  hf_id: openai/whisper-small.en
+  kind: whisper_asr
+  license: apache-2.0
+  training_data: "680k h weakly supervised web audio"
+  child_speech: unknown
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+wav2vec2_base_960h:
+  hf_id: facebook/wav2vec2-base-960h
+  kind: ctc_char
+  license: apache-2.0
+  training_data: "LibriSpeech 960h fine-tuned CTC (characters)"
+  child_speech: false
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+wav2vec2_phoneme_espeak:
+  # V2 / P18: CTC phoneme recogniser (IPA tokens, mapped to ARPAbet by wildspeech.phonetic.g2p)
+  hf_id: facebook/wav2vec2-lv-60-espeak-cv-ft
+  kind: ctc_phoneme
+  license: apache-2.0
+  training_data: "Libri-Light 60k h (unlabelled) + CommonVoice phoneme transcriptions (espeak), adult speech"
+  child_speech: false
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+child_asr_custom:
+  # V2 / P18: register an eligible child-speech ASR (kind whisper_asr | ctc_char | ctc_phoneme). Inactive until
+  # hf_id/local_path are set and BOTH verification flags are true after reading the model card and checking
+  # that its training data does not include this competition's recordings.
+  hf_id: null
+  kind: whisper_asr
+  license: null
+  training_data: null
+  child_speech: true
+  license_verified: false
+  overlap_checked: false
+  local_path: null
+
+child_ssl_custom:
+  # Register an eligible child-speech checkpoint here (e.g. a public model fine-tuned on MyST / CSLU kids).
+  # It stays inactive until hf_id/local_path are set and both verification flags are true.
+  hf_id: null
+  kind: ssl_encoder
+  license: null
+  training_data: null
+  child_speech: true
+  license_verified: false
+  overlap_checked: false
+  local_path: null

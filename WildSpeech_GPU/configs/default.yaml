@@ -1,0 +1,233 @@
+# WildSpeech GPU research pipeline — default configuration.
+# Precedence: default.yaml < profiles.yaml[profile] < user overrides (notebook / CLI --set key=value).
+# Every stage fingerprint is computed from the config sections it declares, so changing a value
+# invalidates exactly the stages (and feature-family caches) that depend on it.
+
+project:
+  name: WildSpeech
+  experiment: WS_GPU_V1
+  seed: 42
+  code_version: "1.0.0"
+
+paths:
+  root: auto                 # auto = directory that contains configs/ (the repository root)
+  data_dir: auto             # auto = search data_search_roots for the competition files
+  data_search_roots: ["data/raw", "data", "../data", "../../data", ".."]
+  data_search_max_depth: 3
+  cache_dir: cache
+  outputs_dir: outputs
+  models_dir: models
+  experiments_dir: experiments
+  submissions_dir: submissions
+  reports_dir: reports
+  hf_cache_dir: null         # local HuggingFace snapshot dir (null = HF default cache)
+
+data:
+  required_files:
+    train_clips: train_clip_metadata.csv
+    test_clips: test_clip_metadata.csv
+    train_students: train_student_metadata.csv
+    test_students: test_student_metadata.csv
+    labels: train_labels.csv
+    submission_format: submission_format.csv
+    train_audio: train_audio.tar
+    test_audio: test_audio.tar
+  id_col: subject_id
+  target_col: outcome_score
+  max_students: null         # profile-controlled subsampling (SMOKE)
+  max_test_students: null
+  subsample_seed: 7
+
+runtime:
+  resume: true
+  stop_on_error: false
+  overwrite_cache: false
+  auto_invalidate_stale_cache: true
+  device: auto               # auto | cuda | cpu
+  torch_threads: 6
+  decode_threads: 6          # threaded FLAC decoding (soundfile releases the GIL)
+  prefetch_batches: 2        # bounded memory: at most (prefetch+1) batches decoded at once
+  ram_soft_limit_gb: 10.0    # loader pauses prefetching above this process RSS
+  allow_model_download: false
+  hf_local_files_only: true
+
+audio:
+  sample_rate: 16000
+  max_clip_seconds: 30.0     # GPU features computed on the first N seconds; true duration retained
+  min_clip_seconds: 0.05
+  extract_train: true
+  extract_test: false        # test acoustic extraction only in SUBMISSION (or explicit opt-in)
+  max_clips: null            # profile-controlled (SMOKE)
+  families: [quality, temporal, spectral, mfcc, mel]   # GPU families; pitch and wavelet opt-in
+  enable_pitch: false
+  enable_wavelet: false
+  n_fft: 512
+  hop_length: 160
+  win_length: 400
+  n_mels: 64
+  n_mfcc: 13
+  fmin: 20.0
+  fmax: 8000.0
+  mel_summary_bands: 8
+  vad_noise_percentile: 10.0
+  vad_peak_percentile: 99.0
+  vad_offset_db: 9.0
+  vad_max_below_peak_db: 40.0
+  vad_min_dynamic_range_db: 6.0
+  min_speech_s: 0.06
+  min_silence_s: 0.12
+  long_pause_s: 0.5
+  nucleus_prominence_db: 4.0
+  nucleus_min_gap_s: 0.10
+  f0_min_hz: 80.0
+  f0_max_hz: 600.0
+  yin_frame_length: 1024
+  yin_threshold: 0.15
+  yin_voicing_max: 0.35
+  wavelet_family: db4
+  wavelet_level: 6
+  wavelet_max_seconds: 10.0
+  checkpoint_every: 1000     # clips per Parquet part file
+  extractor_version: "gpu-1.0.0"
+
+gpu:
+  batch_size: 24             # start in the requested 16-32 range; "auto" uses P00 benchmark recommendation
+  max_batch_size: 64
+  min_batch_size: 1
+  max_batch_seconds: 480.0   # duration budget per batch (sum of padded seconds)
+  vram_safety_fraction: 0.80 # adaptive growth stops above this fraction of total VRAM
+  grow_after_batches: 40
+  benchmark_batch_sizes: [8, 16, 24, 32, 48, 64]
+  benchmark_clips: 192
+  benchmark_seconds: 6.0
+  parity_clips: 24
+  parity_rtol: 0.002
+  parity_atol: 0.001
+  use_fp16_embeddings: true
+
+phonetic:
+  enabled: false             # expensive; RESEARCH profile enables
+  asr_model: whisper_small_en
+  ctc_model: wav2vec2_base_960h
+  asr_batch_size: 8
+  ctc_batch_size: 8
+  max_seconds: 30.0
+  low_confidence_logprob: -2.0
+  g2p_backend: auto          # auto -> g2p_en if installed, otherwise rule-based grapheme proxy
+
+embeddings:
+  enabled: false             # expensive; RESEARCH profile enables
+  models: [wav2vec2_base, hubert_base, wavlm_base_plus, whisper_base]
+  layers: auto               # auto = [middle, last]
+  batch_size: 8
+  max_seconds: 20.0
+  pca_components: 16         # fitted inside each training fold on train-fold clips
+
+features:
+  shrinkage_k: 10.0          # item statistics shrunk toward task level
+  slope_shrinkage_k: 5.0
+  contrast_shrinkage_k: 3.0
+  min_obs_per_student_task: 2
+  core_features:
+    QUALITY: [snr_db, noise_floor_db, bandlimit_hz, clipping_ratio, hf_ratio]
+    TEMPORAL: [speech_ratio, onset_latency_s, speech_dur_s, n_pauses, pause_ratio, mean_pause_s, long_pauses, nucleus_rate, trailing_silence_s, n_segments]
+    SPECTRAL: [centroid_mean, bandwidth_mean, rolloff_mean, flatness_mean, entropy_mean, flux_mean, slope_mean, centroid_std]
+    PITCH: [f0_median_st, f0_range_st, f0_std_st, voiced_ratio, jitter_proxy, f0_slope_st_s]
+    ASR: [cer, wer, len_ratio, avg_logprob, empty]
+    ALIGN: [gop_mean, gop_min, low_conf_frac, greedy_cer, gop_gap]
+  core_stats: [mean, std, median, p10, p90]
+  other_stats: [mean, std]
+  include_contrast: true
+  include_slope: true
+  include_global: true
+  include_irt: true
+  crossfit_folds: 5
+
+validation:
+  n_splits: 5
+  n_repeats: 3
+  stratify_bins: 5
+  inner_splits: 4
+  min_school_size: 8
+  schemes: [repeated_kfold, school_kfold]
+  extended_schemes: [loso, instrument_transfer, sample_rate_transfer]
+  bootstrap: 1000
+  fdr_alpha: 0.05
+  metric: r2                 # official competition metric (as stated by the user)
+
+models:
+  gbm_device: cpu            # cpu is faster than GPU for ~500 rows; set cuda to test
+  gbm_threads: 6
+  selector_k: 200            # supervised top-k selection fitted inside training folds
+  max_missing_frac: 0.6
+  benchmark_models: [RIDGE, ELASTIC_NET, PLS, GAM, CATBOOST, XGBOOST, LIGHTGBM]
+  benchmark_families: [[SCREENING], [SCREENING, RECORDING], [SCREENING, BEHAVIOR, ITEM], [SCREENING, BEHAVIOR, ITEM, TEMPORAL], [ALL]]
+  ablation_model: RIDGE
+  ablation_base: [SCREENING, RECORDING]
+  ablation_max_subset: 3
+  ablation_max_evals: 80
+  ablation_time_budget_s: 3600
+  ablation_forward_steps: 6
+
+multimodal:
+  enabled: true
+  neural_enabled: false      # expensive; RESEARCH profile enables
+  residual_alphas: [0.0, 0.25, 0.5, 0.75, 1.0]
+  neural:
+    hidden: 64
+    heads: 4
+    layers: 2
+    dropout: 0.2
+    lr: 0.001
+    weight_decay: 0.01
+    epochs: 150
+    patience: 20
+    batch_students: 32
+    seeds: [0, 1, 2]
+    n_experts: 3
+    max_clips_per_student: 64
+
+analysis:
+  bootstrap: 1000
+  permutations: 1000
+  residual_quantiles: [0.2, 0.8]
+  matching_caliper_sd: 0.25
+  discovery_repeats: 20
+  top_k: 40
+  cluster_k_range: [2, 7]
+  cluster_bootstrap: 50
+  pca_components: 20
+  umap_enabled: true
+  perturbation_clips: 300
+  perturbations: [pitch_up_2st, pitch_down_2st, noise_20db, noise_10db, lowpass_4k, gain_minus_12db]
+  school_eta2_flag: 0.10
+  artifact_corr_flag: 0.40
+  stability_flag: 0.70
+  failure_quantile: 0.80
+  heatmap_max_features: 60
+  figure_dpi: 150
+
+indices:
+  min_components: 2
+  recipes:
+    PHONOLOGICAL_PRECISION:
+      description: "Difficulty-adjusted accuracy and pronunciation confidence on blending/deletion."
+      include: ["ITEM__blending__adj_accuracy", "ITEM__deletion__adj_accuracy", "ALIGN__*__gop_mean__mean", "ASR__*__cer__mean"]
+    FLUENCY:
+      description: "Speech-rate, latency and pause structure on sentence repetition."
+      include: ["TEMPORAL__sentence_repetition__nucleus_rate__mean", "TEMPORAL__sentence_repetition__pause_ratio__mean", "TEMPORAL__*__onset_latency_s__median", "TEMPORAL__sentence_repetition__long_pauses__mean"]
+    CONSISTENCY:
+      description: "Within-student variability of timing and spectral behaviour across items."
+      include: ["TEMPORAL__*__onset_latency_s__std", "TEMPORAL__*__speech_dur_s__std", "SPECTRAL__*__centroid_mean__std", "PITCH__*__f0_median_st__std"]
+    COMPLEXITY_SENSITIVITY:
+      description: "How strongly timing and accuracy degrade with item difficulty."
+      include: ["TEMPORAL__*__speech_dur_s__slope", "TEMPORAL__*__onset_latency_s__slope", "BEHAVIOR__*__duration_z__slope"]
+
+submission:
+  enabled: false             # test inference only in SUBMISSION profile
+  filename: WILDSPEECH_GPU_submission.csv
+  clip_predictions_to_train_range: true
+
+report:
+  title: "WildSpeech — Literacy Signal Discovery Report"
+  html: true
