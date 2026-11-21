@@ -1,0 +1,124 @@
+# WildSpeech V4 — speech-text-acoustic multimodal intelligence (Colab research line).
+# Merged after v3.yaml at load time. EVERYTHING lives under `v4`, so no P00-P29 stage fingerprint changes.
+# The notebook CONFIG (notebooks/WILDSPEECH_V4_MULTIMODAL_MASTER.ipynb) is translated into overrides of this file by
+# wildspeech.v4.config.build_overrides(); values here are the defaults.
+
+v4:
+  schema_version: "4.0.0"
+  code_version: "v4.0.0"
+
+  # --------------------------------------------------------------------------- external ASR import
+  asr_import:
+    provenance_type: external_colab_asr
+    # The external predictions must have been produced with models whose use was permission-reviewed by you.
+    # V4 never claims they are P24 outputs. Fill this record before running the import; without it every
+    # ASR-derived family is NOT_EXECUTED (the tabular and acoustic experiments still run).
+    permission_review:
+      reviewed: false               # set true after reviewing licences / competition rules of every exported model
+      reviewer: ""
+      date: ""                      # YYYY-MM-DD
+      statement: ""                 # e.g. "models permitted by competition rules; licences reviewed"
+      models: []                    # [] = every model found in the export; otherwise only these model ids are used
+    # Explicit mapping canonical role -> source column, used when automatic detection is ambiguous. Leave {} first:
+    # the import writes asr_import/asr_schema_report.json with the detected mapping and examples.
+    column_map: {}
+    # Wide exports (one row per clip, one transcript column per model): {model_id: transcript_column}. {} = detect.
+    wide_model_columns: {}
+    duplicate_policy: prefer_success_then_latest   # duplicates are never silently dropped (duplicates.parquet)
+    min_model_coverage: 0.50        # a model needs >= this share of clips with a usable transcript per split
+    require_test_coverage: true     # a model used for the submission must cover the test split as well
+    failure_values: [error, failed, failure, fail, exception, timeout, oom, skipped, false, "0"]
+    success_values: [ok, success, succeeded, done, completed, complete, true, "1"]
+
+  # --------------------------------------------------------------------------- joins
+  joins:
+    audio_extensions: [".flac", ".wav", ".mp3", ".ogg", ".opus", ".m4a"]
+    max_unmatched_examples: 25
+    external_manifest_glob: ["*manifest*.parquet", "*manifest*.csv"]   # searched in asr_root (optional)
+    build_tar_manifests: true       # header pass over train/test TARs on Drive (cached in cache/manifests)
+
+  # --------------------------------------------------------------------------- clip features
+  text:
+    primary_strategy: consensus     # consensus (mean over usable models) | best_coverage
+    include_g2p_derived: false      # G2P of RECOGNISED WORDS (derived, NOT a measured phonetic transcription)
+    near_match_cer: 0.34
+    text_correct_cer: 0.20
+    core_features: [w_er, c_er, w_del_rate, w_sub_rate, w_ins_rate, coverage, w_seq_preservation, len_ratio,
+                    empty, repetitions, restarts, near_match]
+    task_features:
+      blending: [bl_exact, bl_segmented, bl_partial_cer, bl_extra_words]
+      deletion: [dl_exact, dl_excess_chars, dl_contains_expected, dl_len_diff]
+      sentence_repetition: [sr_fidelity, sr_omission_rate, sr_order, sr_first_half_err, sr_second_half_err]
+    uncertainty_features: [asr_conf, asr_mean_token_logprob]
+    disagreement_features: [dis_word_mean, dis_word_max, dis_char_mean, agree_exact_frac, wer_sd]
+
+  phonetic:
+    min_phone_models: 1             # models whose export carries MEASURED phone strings
+    min_nonempty_frac: 0.30
+    reference_g2p_backend: auto     # reference = expected pronunciation of the EXPECTED text (g2p_en / cmudict)
+    allow_approximate_g2p: false
+    position_bins: 3
+    core_features: [ph_er, ph_sub_rate, ph_del_rate, ph_ins_rate, ph_vowel_err, ph_consonant_err, ph_err_initial,
+                    ph_err_final, ph_seq_preservation]
+
+  acoustic:
+    families: [temporal, spectral, mfcc, pitch, quality]
+    variant: null                   # V2 harmonized bandwidth variant to use instead of original features (P16 cache)
+    search_dirs: []                 # extra cache/features roots (e.g. a Drive copy of the local cache) to reuse
+    core_features:
+      TEMPORAL: [speech_ratio, onset_latency_s, speech_dur_s, n_pauses, pause_ratio, mean_pause_s, nucleus_rate, trailing_silence_s]
+      SPECTRAL: [centroid_mean, bandwidth_mean, flatness_mean, entropy_mean, flux_mean]
+      PITCH: [f0_median_st, f0_range_st, f0_std_st, voiced_ratio]
+      MFCC: []
+      QUALITY: []                   # recording conditions are a CONTROL (REC family), never a speech feature
+
+  # --------------------------------------------------------------------------- student aggregation
+  aggregation:
+    controls: [item, domain, duration, complexity]   # item-conditioned residualization (fold-fitted)
+    stats: [mean, median, sd, p10, p90, correct_mean, hard_mean, wmean, coverage]
+    compact_stats: [mean, sd, correct_mean, hard_mean, coverage]      # used by the large families
+    contrast_features: 3            # cross-task contrasts of the first N core features
+    min_clips: 2
+    shrinkage_k: 10.0
+    max_raw_features_per_family: 400   # hard cap; the fold reducer then compresses to the budget
+
+  # --------------------------------------------------------------------------- modelling
+  baseline: {model: GAM, families: [SCREENING, BEHAVIOR, ITEM]}
+  baseline_models: [RIDGE, GAM, CATBOOST, LIGHTGBM]
+  historical_reference: {name: "V1/V2 repeated-CV tabular GAM", r2: 0.2153,
+                         note: "historical; comparable only after reproduction on the V4 folds"}
+  budget: 20
+  method: pca                       # select | pca | pls | rrr (fold-fitted on inner-OOF baseline residual)
+  residual_alphas: [0.0, 0.1, 0.25, 0.5, 0.75, 1.0]
+  models_early: [RIDGE, CATBOOST]
+  moe:
+    l2: 1.0
+    gate_families: [ASRREL]
+    min_expert_weight: 1.0e-4
+  hier_net:
+    enabled: false                  # M8: only evaluated when a simpler model shows a GENUINE_GAIN (see gate)
+    require_gain_gate: true
+    hidden: 32
+    epochs: 300
+    patience: 25
+    lr: 0.003
+    weight_decay: 0.001
+    dropout: 0.2
+    seeds: [0, 1, 2]
+
+  # --------------------------------------------------------------------------- validation
+  validation:
+    primary: repeated_kfold
+    robustness_schemes: [school_kfold, loso, sample_rate_transfer, instrument_transfer, sample_rate_equal_n]
+    bootstrap: 1000
+    fdr_alpha: 0.05
+    negative_controls: [permuted_asr, shuffled_outcome, recording_only]
+    budgets: [5, 10, 20, 40]
+    importance_repeats: 1           # outer repeats used for grouped permutation importance
+    importance_permutations: 5
+
+  # --------------------------------------------------------------------------- submission
+  submission:
+    clip_to_train_range: true
+    filename: submission.csv
+    require_validated_gain: true    # a multimodal champion needs a GENUINE_GAIN; otherwise the validated baseline

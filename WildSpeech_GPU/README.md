@@ -227,3 +227,25 @@ Notebook: `notebooks/WILDSPEECH_V3_ASR_PHONETIC_INTELLIGENCE_MASTER.ipynb` (`RUN
 * `evaluation.nested_asr_cv.V3Evaluator` traces every fold; a model whose predictions equal the baseline is
   `fallback_baseline` (never reported as ΔR² = 0 "ok"); failures are `failed` with a traceback, never replaced.
 * Tests: `python -m pytest tests -k v3 -m "not integration"` and `python -m pytest tests/test_v3_integration.py`.
+
+## 11. V4 — Speech–Text–Acoustic Multimodal Intelligence (Google Colab)
+Runbook: **`docs/V4_COLAB_RUNBOOK.md`**. Notebook: `notebooks/WILDSPEECH_V4_MULTIMODAL_MASTER.ipynb` (mounts Drive,
+clones this repository at a pinned commit, `pip install -e`, then calls `wildspeech.v4.pipeline.V4Pipeline`).
+Authored as code only; nothing in V4 has been executed.
+
+* Imports the completed external ASR export (`all_models_predictions.parquet`) with provenance
+  `external_colab_asr` + source SHA-256; schema inspected at runtime (long / wide layouts, explicit `column_map`);
+  failures and duplicates are kept and reported; an independent import gate (permission review, coverage, joins)
+  replaces P24 eligibility, which is never bypassed (`asr.outputs` recognises and rejects the external provenance).
+* Joins on (split, normalized original filename); hashed clip ids resolve only through an audio manifest;
+  one-to-one assertions, `clip_master` / `student_master` / `join_audit` / `data_integrity`.
+* Families: `ASRTXT` / `ASRTASK` (recognized-text deviation, task-specific), `ASRUNC`, `ASRDIS` (cross-recognizer
+  disagreement), `ASRREL` (reliability gate inputs), `ASRPHN` (measured phones only), `ACOU` (item-conditioned,
+  domain-controlled acoustics), `ASRCOR` (correct responses only), per-task and per-ASR-model providers, `REC` control.
+* M0–M8 on the frozen V2 folds through `V4Evaluator` (= `V3Evaluator` with a pluggable `V4FoldModel`: reliability-gated
+  mixture of experts, domain partial pooling, compact hierarchical network), ablations, shuffled-ASR / shuffled-outcome /
+  recording-only controls, missing-modality robustness, school / LOSO / instrument / sample-rate schemes, H1–H10,
+  grouped importance, champion from validated OOF comparisons, validated submission.
+* Settings live only under `v4:` (`configs/v4.yaml`, profile `V4`), so no P00–P29 fingerprint changes.
+* Tests (source only, not run): `tests/test_v4_*.py` (`python -m pytest tests -k v4 -m "not integration"`,
+  `python -m pytest tests/test_v4_integration.py`).

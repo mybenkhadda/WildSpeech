@@ -150,3 +150,9 @@ V3_SUBMISSION:
   stages: [P24, P25, P29]
   overrides:
     v3: {asr: {enabled: true, splits: [train, test]}, ablation: {submission: {enabled: true}}}
+
+V4:
+  description: "V4 speech-text-acoustic multimodal research (Colab). Not run by the orchestrator: driven by
+    wildspeech.v4.pipeline.V4Pipeline from notebooks/WILDSPEECH_V4_MULTIMODAL_MASTER.ipynb."
+  stages: []
+  overrides: {}

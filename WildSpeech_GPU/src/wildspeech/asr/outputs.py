@@ -20,12 +20,18 @@ import pandas as pd
 from .. import FILE
 from ..io_utils import read_json, stable_hash
 
-ORIGINS = ("p24_inference", "p24_inference_legacy", "fixture", "unverified", "none")
+ORIGINS = ("p24_inference", "p24_inference_legacy", "fixture", "external_colab_asr", "unverified", "none")
+EXTERNAL_PROVENANCE = "external_colab_asr"
 
 
 def _origin(prov: dict, accept_fixture: bool) -> tuple[str, bool, str]:
     if not prov:
         return "none", False, "no _provenance.json"
+    if prov.get("provenance_type") == EXTERNAL_PROVENANCE or prov.get("producer") == EXTERNAL_PROVENANCE:
+        # externally generated (Colab) predictions are NEVER P24 outputs: they are validated by the independent
+        # V4 import gate (wildspeech.v4.asr_import.validate_import) and live in cache/v4, not here
+        return EXTERNAL_PROVENANCE, False, ("external Colab ASR import: validated by wildspeech.v4.asr_import, "
+                                            "not eligible as P24 output")
     if prov.get("fixture") is True:
         return "fixture", bool(accept_fixture), ("test fixture accepted (v3.asr.accept_fixture_outputs)"
                                                  if accept_fixture else "test fixture output rejected")

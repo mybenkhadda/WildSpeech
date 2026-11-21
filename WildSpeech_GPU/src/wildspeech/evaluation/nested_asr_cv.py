@@ -247,7 +247,12 @@ class V3FoldModel:
 
 
 class V3Evaluator(StudentLevelEvaluator):
-    """StudentLevelEvaluator with V3 specs, per-fold tracing, explicit fallback status, controls and V3 caches."""
+    """StudentLevelEvaluator with V3 specs, per-fold tracing, explicit fallback status, controls and V3 caches.
+
+    `fold_model_cls` is the per-fold model class (V3FoldModel). Subclasses (V4) may set a V3FoldModel subclass that
+    adds fusion strategies; the fitting / tracing / caching protocol is unchanged."""
+
+    fold_model_cls = V3FoldModel
 
     def __init__(self, ctx, stage: str, providers: dict | None = None):
         super().__init__(ctx, stage, providers)
@@ -321,7 +326,8 @@ class V3Evaluator(StudentLevelEvaluator):
                     raise AssertionError(f"missing targets after alignment in fold {f.repeat}/{f.fold}")
                 seed = self.ctx.seed + f.repeat * 31 + f.fold
                 Xtr, Xva, ytr_fit = self._control(spec, Xtr, Xva, groups, ytr, seed)
-                fmod = V3FoldModel(spec, self.ctx.cfg, seed, base_cols, groups, self.tasks, self.baseline["model"]).fit(Xtr, ytr_fit)
+                fmod = self.fold_model_cls(spec, self.ctx.cfg, seed, base_cols, groups, self.tasks,
+                                           self.baseline["model"]).fit(Xtr, ytr_fit)
                 p = fmod.predict(Xva)
                 rows.append(pd.DataFrame({ID: Xva.index, "repeat": f.repeat, "fold": f.fold, "y_true": yva, "y_pred": p,
                                           "fold_label": f.label}))
@@ -419,7 +425,8 @@ class V3Evaluator(StudentLevelEvaluator):
         Xte = pd.concat(te, axis=1)
         Xte = Xte.loc[:, ~Xte.columns.duplicated()].reindex(columns=Xtr.columns)
         y = self.y.reindex(Xtr.index).to_numpy(float)
-        fmod = V3FoldModel(spec, self.ctx.cfg, self.ctx.seed, base_cols, groups, self.tasks, self.baseline["model"]).fit(Xtr, y)
+        fmod = self.fold_model_cls(spec, self.ctx.cfg, self.ctx.seed, base_cols, groups, self.tasks,
+                                   self.baseline["model"]).fit(Xtr, y)
         return fmod, Xtr, Xte
 
 

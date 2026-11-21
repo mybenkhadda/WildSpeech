@@ -11,7 +11,8 @@ from .io_utils import read_json, stable_hash
 
 PROFILES = ("SMOKE", "FAST", "FULL", "RESEARCH", "RESUME", "SUBMISSION",
             "V2_SMOKE", "V2_CORE", "V2_PHONETIC", "V2_FOUNDATION", "V2_FULL", "V2_SUBMISSION",
-            "V3_SMOKE", "V3_AUDIT", "V3_ASR", "V3_SCIENCE", "V3_FULL", "V3_SUBMISSION")
+            "V3_SMOKE", "V3_AUDIT", "V3_ASR", "V3_SCIENCE", "V3_FULL", "V3_SUBMISSION",
+            "V4")
 RELOAD_PROFILES = ("RESUME", "SUBMISSION", "V2_SUBMISSION")
 
 
@@ -114,6 +115,9 @@ def load_config(profile: str = "FAST", config_dir: Path | None = None, overrides
         base = deep_merge(base, load_yaml(cdir / "v2.yaml") or {})
     if (cdir / "v3.yaml").exists():
         base = deep_merge(base, load_yaml(cdir / "v3.yaml") or {})
+    # V4 (Colab multimodal research) lives under the top-level `v4` key only -> no P00-P29 fingerprint changes.
+    if (cdir / "v4.yaml").exists():
+        base = deep_merge(base, load_yaml(cdir / "v4.yaml") or {})
     profiles = load_yaml(cdir / "profiles.yaml")
     spec = profiles.get(profile, {}) or {}
     stages = spec.get("stages")

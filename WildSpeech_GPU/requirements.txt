@@ -31,3 +31,7 @@ pytest>=7.4
 # V3 (P23-P29): P23 and the tests need nothing new. Local ASR (P24) needs, installed manually:
 # transformers>=4.41 huggingface_hub>=0.23   # Whisper / CTC adapters; local snapshot lookup (local_files_only)
 # nemo_toolkit[asr]                           # ONLY if a Pasketti checkpoint turns out to be a .nemo model
+#
+# V4 (Colab, notebooks/WILDSPEECH_V4_MULTIMODAL_MASTER.ipynb): nothing new is mandatory. Installed by the notebook when
+# missing: catboost lightgbm xgboost pygam soxr PyWavelets soundfile shap gdown g2p_en nltk (cmudict). torch is
+# preinstalled on Colab (needed only for GPU acoustic extraction and the optional M8 network).
