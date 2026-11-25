@@ -1,0 +1,42 @@
+name: WildSpeech M8.2 validation
+
+on:
+  push:
+    paths:
+      - 'WildSpeech_M8/**'
+      - '.github/workflows/wildspeech-m82.yml'
+  pull_request:
+    paths:
+      - 'WildSpeech_M8/**'
+      - '.github/workflows/wildspeech-m82.yml'
+  workflow_dispatch:
+
+jobs:
+  m82-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'WildSpeech_M8/pyproject.toml'
+      - name: Install package
+        run: python -m pip install -e './WildSpeech_M8[test]'
+      - name: Unit tests (no competition data required)
+        run: python -m pytest -q WildSpeech_M8/tests/test_m8.py WildSpeech_M8/tests/test_m81.py WildSpeech_M8/tests/test_m82.py
+      - name: Synthetic end-to-end M8.2 smoke
+        run: python WildSpeech_M8/tests/m82_synthetic_demo.py /tmp/wildspeech-m82-ci
+      - name: Notebook structure validation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import nbformat,ast
+          p=Path('WildSpeech_M8/notebooks/WILDSPEECH_M82_PAIRWISE_MASTER.ipynb')
+          n=nbformat.read(str(p),as_version=4)
+          nbformat.validate(n)
+          for i,c in enumerate(n.cells):
+              if c.cell_type=='code': ast.parse(c.source,filename=f'cell_{i}')
+          print('Validated',len(n.cells),'notebook cells')
+          PY
