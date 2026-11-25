@@ -1,0 +1,4 @@
+# Only required for GPU phonetic inference. Install separately after checking model license.
+torch>=2.2
+transformers>=4.44,<5
+eng-to-ipa>=0.0.2

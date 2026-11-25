@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.ipynb_checkpoints/
+*.egg-info/
+.venv/
+outputs/
+cache/
+*.tar
+*.wav
+*.flac
+*.parquet
+.env
