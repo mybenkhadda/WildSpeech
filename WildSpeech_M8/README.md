@@ -71,3 +71,29 @@ print('M8 import successful')
 ```
 
 If you see missing `DATA_ROOT`, `OUTPUT_ROOT`, or `PROFILE_CSV` after that, run the initial environment-and-paths cell. Never install a non-existent PyPI package named `wildspeech_m8` as a workaround; install the checked-out local project.
+
+## M8.2 — Pairwise consensus and behavioral twins (new)
+
+[**Open M8.2 in Google Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M82_PAIRWISE_MASTER.ipynb)
+
+M8.2 reuses the M8.1 **student-level screening, acoustic and phonetic feature caches**. It never downloads or re-extracts raw audio. Modules are in `src/wildspeech_m8/m82_*.py`; the notebook orchestrates them via an installed editable package.
+
+- Outcome-blind K-Means, Gaussian-mixture and Ward ensemble clustering across independently defined views and sample/feature perturbations.
+- Coverage-aware co-association over all training-student pairs, balanced over screening, task behavior, acoustic and phonetic domains. Derived conditional speech is not given an extra independent vote.
+- Actual cluster-size chance correction; robust together/apart, conflicting-view and under-covered pair categories.
+- Reading-score gaps and **cross-fitted** screening residual gaps analyzed **after** unsupervised consensus construction.
+- School, recording-quality and task-content confounder audits; school identifiers never enter clustering inputs.
+- Conservative inductive prototype-based residual-correction model evaluated against the same global CatBoost baseline folds.
+- Sixteen (or more, depending on available views) exploratory figures in an HTML research atlas; full pairs exported in Parquet or compressed CSV.
+
+Run locally from `WildSpeech_M8/` after `pip install -e '.[test]'`:
+
+```bash
+python -m wildspeech_m8.m82_pipeline --config configs/m82_experiments.yaml --mode SMOKE
+python -m wildspeech_m8.m82_pipeline --config configs/m82_experiments.yaml --mode FULL
+python -m pytest -q tests/test_m8.py tests/test_m81.py tests/test_m82.py
+```
+
+The M8.2 results appear in `<M8_OUTPUT_ROOT>/m82/`, independently of M8.1 outputs. Detailed methodology is in [M82_PAIRWISE_EXPERIMENTS.md](docs/M82_PAIRWISE_EXPERIMENTS.md).
+
+**Validation status:** 18 local unit tests and both smoke/full-mode synthetic integration runs passed. The official competition-data M8.2 run and any leaderboard gain remain unverified. Synthetic fixture plots are not official results.
