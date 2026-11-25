@@ -64,6 +64,9 @@ def build(data_root,asr_path,output_root):
     agg.reset_index().to_csv(out/'speech_student_features.csv',index=False)
     print(f'[M8 speech] {len(features)} clips, {len(agg)} students, ASR coverage {features.asr__valid.mean():.2%}')
     print('WARNING: reference-conditioned ASR similarities are not verified child phonetic errors.')
-if __name__=='__main__':
+def main():
     p=argparse.ArgumentParser();p.add_argument('--data-root',required=True);p.add_argument('--asr-path',required=True);p.add_argument('--output-root',required=True)
     a=p.parse_args();build(a.data_root,a.asr_path,a.output_root)
+
+if __name__=='__main__':
+    main()
