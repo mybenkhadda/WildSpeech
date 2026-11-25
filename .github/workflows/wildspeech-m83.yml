@@ -1,0 +1,27 @@
+name: WildSpeech M8.3 notebook and synthetic diagnostics
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'WildSpeech_M8/notebooks/WILDSPEECH_M83_BOTTLENECK_MASTER.ipynb'
+      - 'WildSpeech_M8/src/wildspeech_m8/m83_bottleneck.py'
+      - 'WildSpeech_M8/tests/test_m83*.py'
+      - 'WildSpeech_M8/pyproject.toml'
+      - '.github/workflows/wildspeech-m83.yml'
+  workflow_dispatch:
+
+jobs:
+  notebook-and-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install WildSpeech M8 test dependencies
+        run: pip install -e "./WildSpeech_M8[test]"
+      - name: Check all notebook cells and synthetic diagnostics
+        run: python -m pytest -q WildSpeech_M8/tests/test_m83.py WildSpeech_M8/tests/test_m83_notebook.py

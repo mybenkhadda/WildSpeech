@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wildspeech-m8"
-version = "0.8.2"
+version = "0.8.3"
 description = "Fold-safe student score-aware discovery and multimodal speech experiments"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,7 @@ wildspeech-m8-phonetic = "wildspeech_m8.m8_phonetic:cli"
 wildspeech-m8-train = "wildspeech_m8.m8_pipeline:cli"
 wildspeech-m8-research = "wildspeech_m8.m8_research:main"
 wildspeech-m82 = "wildspeech_m8.m82_pipeline:cli"
+wildspeech-m83 = "wildspeech_m8.m83_bottleneck:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

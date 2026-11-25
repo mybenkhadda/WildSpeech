@@ -99,18 +99,16 @@ The M8.2 results appear in `<M8_OUTPUT_ROOT>/m82/`, independently of M8.1 output
 **Validation status:** 18 local unit tests and both smoke/full-mode synthetic integration runs passed. The official competition-data M8.2 run and any leaderboard gain remain unverified. Synthetic fixture plots are not official results.
 
 
-## M8.3 — Performance bottleneck audit (GitHub-first)
+## M8.3 — Exhaustive bottleneck research, Drive-first
 
-[**Open M8.3 directly in Google Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M83_BOTTLENECK_MASTER.ipynb)
+[**Open the 60-cell M8.3 research notebook directly in Google Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M83_BOTTLENECK_MASTER.ipynb)
 
-M8.3 reuses M8.1 cached student features and adds matched-fold feature ablations, random vs school-disjoint validation, train/validation gaps, held-out pair ranking diagnostics, nested residual probes, negative-control label shuffling, learning curves and figures. **No ZIP upload or audio re-extraction required.** See [the detailed M8.3 guide](docs/M83_BOTTLENECK.md). All student-level predictions must remain in private storage.
+The notebook mounts Google Drive **before** loading data; discovers and validates all six official CSVs; selects an existing M7 profile and the M8 audio/speech/phonetic feature caches; reports missing/partial caches rather than silently interpreting metadata-only runs; executes matching-fold OOF ablations, random-vs-school CV, nested residual correction, negative controls and learning curves; and generates **18+ research figures, an HTML atlas, a figure index, diagnostics, and a ranked bottleneck scorecard**. It does not download or re-extract raw audio. Outputs stay private under `MyDrive/WildSpeech_M8/m83_bottleneck` or the discovered M8 output root.
 
-Local usage:
+Run Colab in **SMOKE** first. Change `MODE="FULL"` in the notebook config to execute the full experiment. Full mode requires a complete audio cache by default; the M7 profile is strongly recommended. No official-data bottleneck conclusions can be claimed until the notebook executes on real data.
 
-```bash
-python -m pip install -e './WildSpeech_M8[test]'
-python -m wildspeech_m8.m83_bottleneck --data-root /path/to/WildSpeech --output-root /path/to/WildSpeech_M8 --quick --folds 3 --repeats 1 --bootstrap 50
-python -m pytest -q WildSpeech_M8/tests/test_m83.py
-```
+Local command: `python -m wildspeech_m8.m83_bottleneck --data-root /data/WildSpeech --output-root /data/WildSpeech_M8 --folds 5 --repeats 2`.
 
-The official-data run and any leaderboard benefit remain **unverified** until execution on competition data.
+Validation: `python -m pytest -q WildSpeech_M8/tests/test_m83.py WildSpeech_M8/tests/test_m83_notebook.py`.
+
+More: [M83_BOTTLENECK.md](docs/M83_BOTTLENECK.md).

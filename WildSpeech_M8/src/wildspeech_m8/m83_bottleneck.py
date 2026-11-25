@@ -24,6 +24,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GroupKFold, KFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from tqdm.auto import tqdm
 
 try:
     from .m8_pipeline import (Config, prepare_dataset, FoldEncoder,
@@ -120,7 +121,7 @@ def cv_tournament(frame,y,groups,columns,family,cfg,grouped):
     splits=make_splits(len(y),groups,cfg,grouped)
     if not splits:return pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
     preds=[];folds=[];gaps=[]
-    for rep,fold,tr,va in splits:
+    for rep,fold,tr,va in tqdm(splits,desc=f"M8.3 {'school-disjoint' if grouped else 'student'} CV",unit="fold"):
         split_label='grouped' if grouped else 'random'
         for name,cols in [('mean',[]),*sets.items()]:
             p,pt=fit_predict(frame,y,tr,va,cols,cfg.seed+1000*rep+fold,baseline=(name=='mean'))
@@ -348,20 +349,28 @@ def run_frame(frame,y,groups,out,cfg:AuditConfig):
     if len(frame)!=len(y) or len(groups)!=len(y) or not np.isfinite(y).all():raise ValueError('Alignment/nonfinite outcome error')
     if len(set(groups))<2:warnings.warn('Only one school, school shift cannot be measured')
     cols,fam=safe_columns(frame,cfg.max_features)
+    print(f"[M8.3] {len(frame)} students | {len(cols)} features | {len(set(groups))} schools",flush=True)
+    print("[M8.3] Phase 1/8: random-student ablations",flush=True)
     rand_p,rand_f,gap=cv_tournament(frame,y,groups,cols,fam,cfg,False)
     grouped=len(np.unique(groups))>=3
+    print("[M8.3] Phase 2/8: school-held-out ablations",flush=True)
     group_p,group_f,_=cv_tournament(frame,y,groups,cols,fam,cfg,True) if grouped else (pd.DataFrame(),pd.DataFrame(),pd.DataFrame())
     oof=pd.concat([rand_p,group_p],ignore_index=True)
     folds=pd.concat([rand_f,group_f],ignore_index=True)
     base='screening_only' if 'screening_only' in set(rand_p.model) else 'mean'
+    print("[M8.3] Phase 3/8: paired bootstrap + pairwise ranking",flush=True)
     boots=cluster_bootstrap(rand_p,base,'all',cfg.bootstrap,cfg.seed)
     pairs,pair_overall=pair_diagnostics(rand_p,cfg)
     subgroup=subgroup_analysis(rand_p,frame,fam,cfg)
+    print("[M8.3] Phase 4/8: nested residual probes",flush=True)
     probe=residual_probe(frame,y,groups,cols,cfg,False) if cfg.run_residual_probe else pd.DataFrame()
     if grouped and cfg.run_residual_probe:
         probe=pd.concat([probe,residual_probe(frame,y,groups,cols,cfg,True)],ignore_index=True)
+    print("[M8.3] Phase 5/8: target permutation control",flush=True)
     null=negative_control(frame,y,groups,cols,cfg) if cfg.run_negative_control else pd.DataFrame()
+    print("[M8.3] Phase 6/8: data-size learning curves",flush=True)
     curve=learning_curve(frame,y,groups,cols,cfg) if cfg.run_learning_curve else pd.DataFrame()
+    print("[M8.3] Phase 7/8: cluster residual overlays",flush=True)
     clusters=residual_clusters(rand_p,frame,cols,cfg)
     tables={'fold_metrics':folds,'oof_predictions':oof,'paired_bootstrap':boots,
             'pair_gap_diagnostics':pairs,'pair_overall':pair_overall,'subgroup_errors':subgroup,
@@ -374,6 +383,7 @@ def run_frame(frame,y,groups,out,cfg:AuditConfig):
                 # group can itself identify school, so never publish this file.
                 d.to_csv(out/'tables'/f'{name}_PRIVATE.csv',index=False)
             else:d.to_csv(out/'tables'/f'{name}.csv',index=False)
+    print("[M8.3] Phase 8/8: diagnostics + figures",flush=True)
     figures=write_figures(out,folds,subgroup,pairs,curve,probe)
     manifest={'rows':len(frame),'schools':int(len(np.unique(groups))),
               'feature_count':len(cols),'families':pd.Series(list(fam.values())).value_counts().to_dict(),
