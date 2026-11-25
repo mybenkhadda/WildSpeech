@@ -97,3 +97,20 @@ python -m pytest -q tests/test_m8.py tests/test_m81.py tests/test_m82.py
 The M8.2 results appear in `<M8_OUTPUT_ROOT>/m82/`, independently of M8.1 outputs. Detailed methodology is in [M82_PAIRWISE_EXPERIMENTS.md](docs/M82_PAIRWISE_EXPERIMENTS.md).
 
 **Validation status:** 18 local unit tests and both smoke/full-mode synthetic integration runs passed. The official competition-data M8.2 run and any leaderboard gain remain unverified. Synthetic fixture plots are not official results.
+
+
+## M8.3 — Performance bottleneck audit (GitHub-first)
+
+[**Open M8.3 directly in Google Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M83_BOTTLENECK_MASTER.ipynb)
+
+M8.3 reuses M8.1 cached student features and adds matched-fold feature ablations, random vs school-disjoint validation, train/validation gaps, held-out pair ranking diagnostics, nested residual probes, negative-control label shuffling, learning curves and figures. **No ZIP upload or audio re-extraction required.** See [the detailed M8.3 guide](docs/M83_BOTTLENECK.md). All student-level predictions must remain in private storage.
+
+Local usage:
+
+```bash
+python -m pip install -e './WildSpeech_M8[test]'
+python -m wildspeech_m8.m83_bottleneck --data-root /path/to/WildSpeech --output-root /path/to/WildSpeech_M8 --quick --folds 3 --repeats 1 --bootstrap 50
+python -m pytest -q WildSpeech_M8/tests/test_m83.py
+```
+
+The official-data run and any leaderboard benefit remain **unverified** until execution on competition data.

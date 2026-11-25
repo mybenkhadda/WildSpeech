@@ -1,0 +1,9 @@
+# M8.3 CLI reference — options are passed as flags; this YAML is documentation only.
+data_root: /content/drive/MyDrive/WildSpeech
+output_root: /content/drive/MyDrive/WildSpeech_M8
+profile_csv: ''
+folds: 5
+repeats: 2
+max_features: 450
+bootstrap: 400
+quick: false
