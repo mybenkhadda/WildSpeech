@@ -1,0 +1,14 @@
+# WildSpeech M8.2. Edit Drive paths before FULL execution.
+data_root: /content/drive/MyDrive/WildSpeech
+output_root: /content/drive/MyDrive/WildSpeech_M8
+profile_csv: ''
+mode: SMOKE
+seed: 2026
+max_features: 450
+max_per_view: 36
+resamples: 5
+row_fraction: 0.82
+min_pair_coverage: 0.38
+run_predictive: true
+predictive_folds: 5
+predictive_repeats: 1
