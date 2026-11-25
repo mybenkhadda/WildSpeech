@@ -6,7 +6,7 @@ A self-contained, installable package inside [`mybenkhadda/WildSpeech`](https://
 
 [**Open M8.1 in Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M81_GITHUB_MASTER.ipynb)
 
-The first cell clones `mybenkhadda/WildSpeech` and installs `WildSpeech_M8` in editable mode. No ZIP extraction or manually copying `.py` files is necessary. In Colab, point `DATA_ROOT` at the official WildSpeech data directory in Google Drive, and set `PROFILE_CSV` to the prior M7 profile export if present. You may choose `MODE='SMOKE'` before `MODE='FULL'`.
+The setup cells clone `mybenkhadda/WildSpeech`, install `WildSpeech_M8` in editable mode, and add its `src/` directory to the current Colab kernel's import path (**no runtime restart needed**). The first import cell also repairs a missing package automatically. No ZIP extraction or manually copying `.py` files is necessary. In Colab, point `DATA_ROOT` at the official WildSpeech data directory in Google Drive, and set `PROFILE_CSV` to the prior M7 profile export if present. You may choose `MODE='SMOKE'` before `MODE='FULL'`.
 
 ## Layout
 
@@ -51,3 +51,23 @@ python -m wildspeech_m8.m8_phonetic --data-root /path/WildSpeech --output-root .
 `outputs/m8/tables/` contains validation scores, fold-aligned ablations, conditional associations, group stability, drift, and matched student comparisons. `outputs/m8/figures/` includes the main modeling figures and E01–E13 research atlas. `outputs/m8/RESEARCH_SUMMARY.md` interprets evidence limitations. `outputs/m8/predictions/m8_submission.csv` is written by the full training pipeline.
 
 **Scientific limits:** Audio VAD/quality proxies are not validated speaker diarization; phonetic hypotheses are not ground-truth child phoneme labels. Supervised groups trained on labeled data are descriptive until they generalize to unseen students. A synthetic smoke score is never a competition score. Commit only code and small docs; never commit raw child speech/audio, personal student identifiers, local checkpoint weights or competition outputs.
+## Troubleshooting: `ModuleNotFoundError: No module named 'wildspeech_m8'`
+
+This was fixed in the GitHub notebook in commit `44bd650a`. If using a personal Colab Drive copy, that copy **does not update automatically** when GitHub changes; reopen the [GitHub notebook](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M81_GITHUB_MASTER.ipynb), or insert this before the first `wildspeech_m8` import:
+
+```python
+import sys, subprocess
+from pathlib import Path
+p = Path('/content/WildSpeech_git/WildSpeech_M8')
+if not (p / 'pyproject.toml').is_file():
+    subprocess.check_call(['git','clone','--depth','1',
+        'https://github.com/mybenkhadda/WildSpeech.git','/content/WildSpeech_git'])
+subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(p)])
+src = str(p.resolve() / 'src')
+if src not in sys.path:
+    sys.path.insert(0, src)
+from wildspeech_m8.m8_pipeline import Config
+print('M8 import successful')
+```
+
+If you see missing `DATA_ROOT`, `OUTPUT_ROOT`, or `PROFILE_CSV` after that, run the initial environment-and-paths cell. Never install a non-existent PyPI package named `wildspeech_m8` as a workaround; install the checked-out local project.
