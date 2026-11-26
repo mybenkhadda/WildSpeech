@@ -1,0 +1,30 @@
+# M8.4 Phase 0 — frozen reference and historical-comparison protocol.
+# Notebook config cell or python -m wildspeech_m84.runner options govern execution.
+reference:
+  source: https://blog.drivendata.org/blog/literacy-speech-modeling-reference
+  feature_count: 14
+  mean_fold_r2_expected: 0.193
+  mean_fold_r2_tolerance: 0.005
+  estimator: imputer_median_plus_indicator_standard_scaler_ridgecv_50_alphas
+validation:
+  canonical_order: train_student_metadata.csv
+  n_splits: 5
+  n_repeats: 10
+  random_state: 42
+  schemes: [student, school]
+  primary: mean_pooled_oof_r2_across_repeats
+  reference_parity: mean_of_50_fold_r2
+promote:
+  mean_fold_delta_r2_at_least: 0.010
+  nadeau_bengio_corrected_t_at_least: 2.0
+  fold_win_rate_at_least: 0.60
+  school_pooled_delta_r2_at_least: -0.005
+  each_instrument_delta_r2_at_least: -0.010
+legacy:
+  m73_status: original_source_missing
+  m83_status: research_only_until_train_only_feature_formation_is_audited
+  run_legacy_by_default: false
+outputs:
+  private_drive: MyDrive/WildSpeech_M84/phase0
+  no_child_level_data_in_git: true
+  auto_submit: false
