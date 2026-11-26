@@ -80,7 +80,7 @@ def test_training_and_test_singleton_feature_independence():
     pd.testing.assert_frame_equal(
         all_test.loc[[test.index[0]]],
         builder.transform(test,other).loc[[test.index[0]]])
-    with pytest.raises(ValueError,match="training IDs"):
+    with pytest.raises(ValueError,match="training students"):
         builder.transform(train.iloc[:1],tc[tc.subject_id==train.index[0]])
 
 
@@ -104,7 +104,9 @@ def test_unknown_prompt_fallback_and_no_test_fit():
     altered=vc.copy()
     altered.loc[altered.subject_id==test.index[0],"expected_text"]="totally unseen prompt"
     feature=builder.transform(test.iloc[:1],altered[altered.subject_id==test.index[0]])
-    assert np.isfinite(feature.to_numpy(dtype=float)).all()
+    assert np.isfinite(feature.filter(regex="^s2_").to_numpy(dtype=float)).all()
+    # S0 is intentionally allowed to contain missing theta and task values;
+    # imputation is fitted later, inside the model's training partition.
     assert before==builder.s2.item_global
 
 

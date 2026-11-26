@@ -97,7 +97,7 @@ def run_diagnostics(data,reference_oof,output_root,min_cell=5):
     matrix=counts.pivot(index="school_id",columns="instrument",values="n").fillna(0).astype(int)
     figure,ax=plt.subplots(figsize=(9,max(5,.38*len(matrix)+1)))
     # Mask suppressed cells *in the color scale too*, not just their text.
-    visible=matrix.to_numpy(float)
+    visible=matrix.to_numpy(dtype=float,copy=True)
     visible[visible<min_cell]=np.nan
     img=ax.imshow(np.ma.masked_invalid(visible),aspect="auto",cmap="Blues")
     ax.set(yticks=range(len(matrix)),yticklabels=matrix.index,
