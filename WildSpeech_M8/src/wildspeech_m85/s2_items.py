@@ -30,8 +30,8 @@ class S2ItemEncoder:
         self.item_global={}
         self.task_student={}
         self.item_student={}
-        for key,g in scored.groupby(["task"],sort=False):
-            self.task_global[str(key[0])]=(float(g.item_score.sum()),len(g))
+        for task,g in scored.groupby("task",sort=False):
+            self.task_global[str(task)]=(float(g.item_score.sum()),len(g))
         for (task,prompt),g in scored.groupby(["task","prompt"],sort=False):
             self.item_global[(str(task),str(prompt))]=(float(g.item_score.sum()),len(g))
         for (task,sid),g in scored.groupby(["task","subject_id"],sort=False):
@@ -67,8 +67,11 @@ class S2ItemEncoder:
         d["prompt"]=d.expected_text.map(normalize_prompt)
         rows=[]
         task_cols=[f"s2_{task}_{name}" for task in TASKS for name in STAT_NAMES]
+        # Build this once per transform, not once per student (quadratic scan).
+        by_student={str(sid):g for sid,g in d.groupby("subject_id",sort=False)}
+        empty=d.iloc[:0]
         for sid in students.index.astype(str):
-            student=d[d.subject_id==sid]
+            student=by_student.get(sid,empty)
             feature={}
             for task in TASKS:
                 subset=student[student.task==task]
@@ -79,9 +82,6 @@ class S2ItemEncoder:
                     ps.append(p);supports.append(n)
                     differences.append(float(row.item_score)-p)
                     weighted.append(float(row.item_score)*(2.-p))
-                for row in subset[subset.item_score.isna()].itertuples():
-                    # Prompt coverage can be observed even if response was not scored.
-                    pass
                 prefix=f"s2_{task}_"
                 vals={
                     "prompt_count":float(subset.prompt.nunique()),

@@ -17,8 +17,8 @@ CLIP_FIELDS=("subject_id","task","expected_text","item_score")
 def normalize_prompt(text):
     """NFC, casefold, collapse Unicode whitespace; never infer prompt chronology."""
     if text is None or pd.isna(text):
-        return "__MISSING_PROMPT__"
-    return " ".join(unicodedata.normalize("NFC",str(text)).casefold().split()) or "__MISSING_PROMPT__"
+        return "__missing_prompt__"
+    return " ".join(unicodedata.normalize("NFC",str(text)).casefold().split()) or "__missing_prompt__"
 
 
 def prompt_identity(task,text):

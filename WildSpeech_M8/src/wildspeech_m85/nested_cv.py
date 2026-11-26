@@ -17,9 +17,8 @@ FULL_BLOCKS=("S2","S3","S4","S5")
 def subset_columns(frame,blocks,remove_nuisance=False):
     keep=list(frame.columns)
     active=set(blocks)
-    keep=[x for x in keep if not (x.startswith(("s2_","s3_","s4_","s5_"))
-                                  and x[1:3].upper() not in active)]
-    # prefix check more explicitly to prevent a feature-family naming failure
+    # Prefixes are provenance labels, not heuristics. Preserve exactly the
+    # explicitly active blocks; never discard an active family accidentally.
     keep=[c for c in keep if not any(c.startswith(s.lower()+"_") for s in FULL_BLOCKS if s not in active)]
     if remove_nuisance:
         nuisance={"blending_mean_duration","deletion_mean_duration",

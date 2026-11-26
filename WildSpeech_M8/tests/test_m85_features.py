@@ -52,8 +52,8 @@ def test_leave_one_student_out_prompt_success_is_invariant_to_own_score():
     sid=train.index[0]
     p0,n0=a.expected_probability("blending","  APPLE  ",sid,exclude_self=True)
     modified=tc.copy()
-    mask=(modified.subject_id==sid)&(modified.task=="blending")&
-         (modified.expected_text.str.strip()=="APPLE")
+    mask=((modified.subject_id==sid)&(modified.task=="blending")&
+          (modified.expected_text.str.strip()=="APPLE"))
     modified.loc[mask,"item_score"]=1.-modified.loc[mask,"item_score"]
     b=S2ItemEncoder(kappa=10.).fit(train,modified)
     p1,n1=b.expected_probability("blending","apple",sid,exclude_self=True)
@@ -110,7 +110,7 @@ def test_unknown_prompt_fallback_and_no_test_fit():
 
 def test_blocked_leakage_inputs():
     train,tc,test,vc=screening_fixture()
-    with pytest.raises(ValueError,match="student IDs overlap"):
+    with pytest.raises(ValueError,match="training students"):
         # Concatenate same student metadata to test, invalid duplicate/overlap.
         ScreeningFeatures(("S2",)).fit(train,tc).transform(train.iloc[:1],
             tc[tc.subject_id==train.index[0]])

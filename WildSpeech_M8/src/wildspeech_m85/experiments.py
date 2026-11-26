@@ -56,7 +56,7 @@ def _record(path,df):
     df.to_parquet(tmp,index=False);os.replace(tmp,path)
 
 
-def _load_reference(root, data, expected_hash=EVAL_HASH_2026):
+def _load_reference(root, data, expected_hash=EVAL_HASH_2026,strict_parity=True):
     folder=Path(root)
     manifest=json.loads((folder/"manifests"/"fold_manifest.json").read_text())
     frozen_hash=manifest["fold_hash"]
@@ -73,7 +73,9 @@ def _load_reference(root, data, expected_hash=EVAL_HASH_2026):
     if computed!=frozen_hash:
         raise RuntimeError("Frozen M8.4 folds failed logical hash verification")
     info=json.loads((folder/"parity"/"M84_RESULTS.json").read_text())
-    if info["fold_hash"]!=frozen_hash or not info["parity_pass"]:
+    if info["fold_hash"]!=frozen_hash:
+        raise RuntimeError("M8.4 frozen reference/fold hash mismatch")
+    if strict_parity and not info["parity_pass"]:
         raise RuntimeError("M8.4 reference parity was not passed on frozen folds")
     ref_run=info["reference_run_id"]
     reference_dir=folder/"runs"/ref_run
@@ -85,7 +87,7 @@ def _load_reference(root, data, expected_hash=EVAL_HASH_2026):
     oof=pd.read_parquet(oof_path)
     validate_oof(oof,fold,data.ids,y)
     metrics=json.loads((reference_dir/"metrics.json").read_text())
-    if not (.188<=metrics["mean_fold_r2"]<=.198):
+    if strict_parity and not (.188<=metrics["mean_fold_r2"]<=.198):
         raise RuntimeError("Reference R² parity no longer passes")
     return fold,oof,frozen_hash,digest_bytes(oof_path),metrics
 
@@ -257,15 +259,20 @@ def execute(drive_root="/content/drive/MyDrive",data_root_override="",
             phase0_root_override="",output_root_override="",mode="SCREEN",
             run_models=CANDIDATES,seed_count=None,iterations=None,
             kappa=10.,n_knots=4,inner_k=3,
-            expected_fold_hash=EVAL_HASH_2026,export_final=True):
+            expected_fold_hash=EVAL_HASH_2026,export_final=True,
+            allow_synthetic_fixture=False):
     if mode not in ("SCREEN","FULL"):
         raise ValueError("mode must be SCREEN or FULL")
+    if allow_synthetic_fixture:
+        if mode!="SCREEN" or expected_fold_hash is not None or export_final:
+            raise ValueError("Synthetic fixture override requires SCREEN, no expected "
+                             "fold hash and export_final=False")
     rootdrive=Path(drive_root)
     root=Path(output_root_override) if output_root_override else rootdrive/"WildSpeech_M85"/"m0plus"
     phase0=Path(phase0_root_override) if phase0_root_override else rootdrive/"WildSpeech_M84"/"phase0"
     data=load_official(locate_data_root(rootdrive,data_root_override))
     folds,reference,fold_hash,ref_sha,ref_metrics=_load_reference(
-        phase0,data,expected_fold_hash)
+        phase0,data,expected_fold_hash,strict_parity=not allow_synthetic_fixture)
     # SCREEN uses the exact first repeat already frozen in Phase 0.
     if mode=="SCREEN":
         folds=folds[folds.repeat==0].reset_index(drop=True)
