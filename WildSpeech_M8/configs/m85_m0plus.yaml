@@ -1,0 +1,40 @@
+# WildSpeech M8.5 — strict Phase 1 preregistered M0+.
+# SCREEN uses 1/10 repeats and is not promotion eligible.
+phase0_reference:
+  root: MyDrive/WildSpeech_M84/phase0
+  required_fold_sha256: 6ee0f59c8cf5ea3d8f20f5fd500353419587660e00949ac6f1e6a16e092c9ce1
+  read_only: true
+  mean_fold_r2: 0.1932274944147675
+  pooled_student_r2: 0.19911336872653493
+m85:
+  root: MyDrive/WildSpeech_M85/m0plus
+  mode: SCREEN
+  run_models: [E01,E02,E03,E04,E05,E06,E07,E08,E09]
+  features:
+    item_difficulty_kappa: 10.0
+    theta_spline_knots: 4
+    item_chronology_features: disabled
+  ridge:
+    alpha_grid: [0.1,1.0,10.0,100.0,1000.0]
+    inner_folds: 3
+  catboost:
+    loss_function: RMSE
+    depth: 2
+    learning_rate: 0.03
+    iterations_full: 600
+    l2_leaf_reg: 20.0
+    seeds_full: [42,43,44,45,46]
+  blend:
+    fixed_weight_grid: [0.0,0.25,0.5,0.75,1.0]
+    choose_on: inner_training_oof_sse
+  promotion_priority: [E04,E03,E02,E01]
+  gate:
+    mean_fold_delta_r2: 0.010
+    corrected_t: 2.0
+    win_fraction: 0.6
+    min_school_pooled_delta_r2: -0.005
+    min_instrument_delta_r2: -0.010
+  submission:
+    only_full_and_all_arms_complete: true
+    only_after_promotion: true
+    independent_raw_student_prediction: required

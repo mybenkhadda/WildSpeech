@@ -127,3 +127,16 @@ pytest -q WildSpeech_M8/tests/test_m84_*.py
 ```
 
 **Status:** Committed code is not itself official-data parity evidence. The reference's published mean-fold R²≈0.193 and public R²≈0.2888 are external benchmarks, not new M8.4 results. Exact M7.3 source is missing from main; historic M8.3 feature bank comparisons are research-only until a train-only compliance audit. Do not upload child-level data, labels, school IDs, OOF files, private models or audio to GitHub.
+
+
+## M8.5 — M0+ strong screening-only milestone
+
+[Open the M8.5 Colab notebook](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M85_M0PLUS_MASTER.ipynb) or [read the implementation guide](docs/M85_M0PLUS.md).
+
+M8.5 reuses M8.4's **original reference OOF** and immutable 50 student + 50 school folds. It introduces student-leave-one-out item statistics (S2), fold-fit nonlinear theta splines (S3), assessment-instrument interactions (S4), task-availability patterns (S5), and a private school/instrument audit. Models E01–E09 compare Ridge, fixed CatBoost, inner-OOF blends, bundled screening features, conditional ablations and a nuisance-control audit.
+
+SCREEN is exploratory (1/10 repeats); FULL requires all 100 original folds, fixed 5-seed models and preregistered promotion vetoes. **No official M8.5 R² result is yet claimed.** The exact M8.4 reference is retained as fallback unless a FULL candidate passes every gate.
+
+    python -m pip install -e './WildSpeech_M8[test]'
+    python -m wildspeech_m85.experiments --drive-root /content/drive/MyDrive --mode SCREEN
+    python -m wildspeech_m85.experiments --drive-root /content/drive/MyDrive --mode FULL
