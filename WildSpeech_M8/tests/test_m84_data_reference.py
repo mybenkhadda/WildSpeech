@@ -49,6 +49,8 @@ def test_exact_reference_matrix_and_model(synthetic_official):
     assert train.shape==(60,14) and test.shape==(18,14)
     assert list(train)==REFERENCE_COLUMNS
     assert train.index.tolist()==data.train_students.index.tolist()
+    assert test.index.tolist()==data.submission_format.index.tolist()
+    assert test.index.tolist()!=data.test_students.index.tolist()
     assert data.order_manifest["labels_original_order_equal"] is False
     assert all(train[c].notna().all() for c in REFERENCE_COLUMNS if c.endswith("_n_clips"))
     model=make_reference()

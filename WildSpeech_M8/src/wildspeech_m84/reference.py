@@ -48,7 +48,11 @@ def metadata_features(clips: pd.DataFrame, students: pd.DataFrame) -> pd.DataFra
 
 def reference_frames(data: Dataset) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]:
     x = metadata_features(data.train_clips, data.train_students)
-    xt = metadata_features(data.test_clips, data.test_students)
+    # Reorder ONLY for final inference according to the official submission template.
+    # This is deterministic ID alignment, not fitting on test data.
+    xt = metadata_features(data.test_clips, data.test_students).reindex(data.submission_format.index)
+    if xt.index.has_duplicates or len(xt) != len(data.test_students):
+        raise ValueError("Test/submission order or identity mismatch")
     y = data.labels.reindex(x.index).to_numpy(dtype=float)
     if not np.isfinite(y).all():
         raise ValueError("Target ID alignment failure")

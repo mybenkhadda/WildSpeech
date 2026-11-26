@@ -118,12 +118,12 @@ More: [M83_BOTTLENECK.md](docs/M83_BOTTLENECK.md).
 
 [**Open the M8.4 Phase 0 notebook in Colab**](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M84_PHASE0_MASTER.ipynb)
 
-A new \`wildspeech_m84\` package implements a strict official-data contract, 14-feature RidgeCV reference, 5×10 student CV plus genuinely randomized 5×10 school CV, immutable fold SHA and run ledger, held-out R² comparisons, provenance registry, synthetic CI checks, and fit-train-only reference submission export with singleton/batch invariance. The private executed report appears at \`MyDrive/WildSpeech_M84/phase0/parity/M84_BASELINE_PARITY.md\`. See [full documentation](docs/M84_PHASE0.md).
+A new `wildspeech_m84` package implements a strict official-data contract, 14-feature RidgeCV reference, 5×10 student CV plus genuinely randomized 5×10 school CV, immutable fold SHA and run ledger, held-out R² comparisons, provenance registry, synthetic CI checks, and fit-train-only reference submission export with singleton/batch invariance. The private executed report appears at `MyDrive/WildSpeech_M84/phase0/parity/M84_BASELINE_PARITY.md`. See [full documentation](docs/M84_PHASE0.md).
 
-\`\`\`bash
+```bash
 pip install -e './WildSpeech_M8[test]'
 python -m wildspeech_m84.runner --drive-root /content/drive/MyDrive
 pytest -q WildSpeech_M8/tests/test_m84_*.py
-\`\`\`
+```
 
 **Status:** Committed code is not itself official-data parity evidence. The reference's published mean-fold R²≈0.193 and public R²≈0.2888 are external benchmarks, not new M8.4 results. Exact M7.3 source is missing from main; historic M8.3 feature bank comparisons are research-only until a train-only compliance audit. Do not upload child-level data, labels, school IDs, OOF files, private models or audio to GitHub.

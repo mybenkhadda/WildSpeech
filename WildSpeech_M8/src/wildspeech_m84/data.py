@@ -89,7 +89,7 @@ def _students(path: Path) -> pd.DataFrame:
     x = pd.read_csv(path, dtype={"subject_id": str})
     if "subject_id" not in x or x.subject_id.isna().any() or not x.subject_id.is_unique:
         raise ValueError(f"Invalid student IDs in {path}")
-    return x.set_index("subject_id", drop=True, verify_integrity=True)
+    return x.set_index("subject_id", drop=True)
 
 
 @dataclass
