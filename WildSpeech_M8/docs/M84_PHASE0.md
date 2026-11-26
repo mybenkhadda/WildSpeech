@@ -105,3 +105,22 @@ After parity PASS, preregister M0+ model arms:
 - P1-C predeclared leave-one-block-out ablations.
 
 Do not run GPU extraction, item normalization, target-guided feature selection or any test-derived fitted transformation inside Phase 0.
+
+## M8.4 instrument-metrics hotfix (2026-11-26)
+
+An early Phase 0 runner produced `fold_metrics.parquet` and `pooled_metrics.parquet`
+but omitted `instrument_metrics.parquet` because the call to `summarize_oof`
+did not pass training-student instrument labels. This was a **reporting bug**,
+not a CV or Drive data failure.
+
+The runner now passes `data.instruments` for reference and historical model
+metrics. A COMPLETE cached run lacking its subgroup artifact is repaired from
+its **validated cached OOF** without retraining; the original run ID, ledger,
+OOF predictions and fold hashes are unchanged. The notebook's Section 7
+also recovers the file on demand for Colab sessions still holding an old run ID.
+Synthetic CI explicitly deletes and repairs the Parquet artifact, checking
+that OOF bytes do not change.
+
+If you already have a completed Colab session, **do not rerun the entire
+notebook**: rerun Section 7 after updating its code, or execute the standalone
+repair cell shown in the troubleshooting response.

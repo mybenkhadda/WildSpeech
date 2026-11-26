@@ -70,8 +70,11 @@ def _m83_predictor(columns):
 
 def train_locked_model(model_id,frame,y,ids,folds,root,git_sha,fold_hash,
                        feature_hash,data_manifest_hash,model_config,predictor,
-                       resume=True,notes="",compliance="reference_train_only"):
+                       *,instruments, resume=True,notes="",compliance="reference_train_only"):
     """Fold-level cache with immutable run identity and explicit ledger states."""
+    instruments=np.asarray(instruments,dtype=str)
+    if len(instruments)!=len(ids):
+        raise ValueError("Instrument labels must align with canonical student IDs")
     ledger=Ledger(root)
     cfg_hash=sha_json(model_config)
     run_id=make_run_id(model_id,git_sha,feature_hash,fold_hash,cfg_hash)
@@ -82,6 +85,19 @@ def train_locked_model(model_id,frame,y,ids,folds,root,git_sha,fold_hash,
         oof=pd.read_parquet(output)
         from .metrics import validate_oof
         validate_oof(oof,folds,ids,y)
+        # Older M8.4 runs completed without saving instrument metrics.
+        # Recover from verified cached OOF predictions, never refit 100 CV models.
+        instrument_file=folder/"instrument_metrics.parquet"
+        if not instrument_file.is_file():
+            _,_,inst=summarize_oof(oof,folds,ids,y,instruments=instruments)
+            if inst.empty:
+                raise ValueError("Instrument metrics unexpectedly empty for completed run")
+            _write_parquet(inst,instrument_file)
+            print(f"[M84] Repaired instrument metrics from cached OOF: {instrument_file}")
+        else:
+            existing=pd.read_parquet(instrument_file)
+            if existing.empty or not {"scheme","repeat","instrument","r2","n","sse"}.issubset(existing.columns):
+                raise RuntimeError(f"Corrupt instrument metrics: {instrument_file}")
         print(f"[M84] Reused validated {model_id} run={run_id}")
         return run_id,oof
     if prev and prev["status"] not in ("PLANNED","RUNNING"):
@@ -123,11 +139,12 @@ def train_locked_model(model_id,frame,y,ids,folds,root,git_sha,fold_hash,
         from .metrics import validate_oof
         validate_oof(oof,folds,ids,y)
         _write_parquet(oof,output)
-        scores,pool,inst=summarize_oof(oof,folds,ids,y)
+        scores,pool,inst=summarize_oof(oof,folds,ids,y,instruments=instruments)
+        if inst.empty:
+            raise ValueError("Instrument metrics unexpectedly empty; refusing incomplete COMPLETE run")
         _write_parquet(scores,folder/"fold_metrics.parquet")
         _write_parquet(pool,folder/"pooled_metrics.parquet")
-        if not inst.empty:
-            _write_parquet(inst,folder/"instrument_metrics.parquet")
+        _write_parquet(inst,folder/"instrument_metrics.parquet")
         subset=scores[scores.scheme=="student"]
         pooled=pool[pool.scheme=="student"]
         if not len(subset)==50 or not len(pooled)==10:
@@ -282,7 +299,7 @@ def run_phase0(drive_root, data_root_override="", output_root_override="", m8_ro
             "reference_columns":REFERENCE_COLUMNS,"model_version":"drivendata-2026-11-24"}
     ref_run,ref_oof=train_locked_model(
         "REF_RIDGE14",x,y,ids,folds,root,git_sha,fold_hash,feature_hash,data_hash,
-        config,_reference_predictor,
+        config,_reference_predictor,instruments=data.instruments,
         notes="Exact DrivenData metadata-only reference; student metadata order")
     ref_metrics=json.loads((root/"runs"/ref_run/"metrics.json").read_text())
     parity=(.188 <= ref_metrics["mean_fold_r2"] <= .198)
@@ -319,7 +336,7 @@ def run_phase0(drive_root, data_root_override="", output_root_override="", m8_ro
                     feature_hash_legacy,data_hash,
                     {"implementation":"M8.3 legacy fit_predict fast=True", "columns":cols,
                      "legacy_feature_warning":True},
-                    _m83_predictor(cols),
+                    _m83_predictor(cols),instruments=data.instruments,
                     notes="RESEARCH_ONLY: past M8 feature formation may inspect test values",
                     compliance="LEGACY_RESEARCH_ONLY")
                 run_ids[model_id]=legacy_id

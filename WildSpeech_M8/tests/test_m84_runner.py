@@ -51,6 +51,20 @@ def test_phase0_end_to_end_with_resumable_locked_folds(tmp_path):
     assert (tmp_path/"WildSpeech_M84"/"phase0"/"folds"/"folds.parquet").is_file()
     assert (tmp_path/"WildSpeech_M84"/"phase0"/"parity"/"M84_BASELINE_PARITY.md").is_file()
     assert (tmp_path/"WildSpeech_M84"/"phase0"/"runs"/r1["reference_run_id"]/"oof_predictions_PRIVATE.parquet").is_file()
+    folder=tmp_path/"WildSpeech_M84"/"phase0"/"runs"/r1["reference_run_id"]
+    instrument_path=folder/"instrument_metrics.parquet"
+    oof_path=folder/"oof_predictions_PRIVATE.parquet"
+    assert instrument_path.is_file()
+    original=pd.read_parquet(instrument_path)
+    assert len(original)>=20 and {"scheme","instrument","r2","n","sse"}.issubset(original.columns)
+    unchanged_oof_sha=digest_bytes(oof_path)
+    # Simulate an already-completed run saved by the earlier broken reporter.
+    instrument_path.unlink()
+    assert not instrument_path.exists()
     r2=run_phase0(tmp_path,require_parity=False)
+    assert instrument_path.is_file()
+    repaired=pd.read_parquet(instrument_path)
+    pd.testing.assert_frame_equal(original,repaired)
+    assert digest_bytes(oof_path)==unchanged_oof_sha
     assert r2["reference_run_id"]==r1["reference_run_id"]
     assert r2["fold_hash"]==r1["fold_hash"]
