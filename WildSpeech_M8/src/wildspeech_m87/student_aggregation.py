@@ -121,59 +121,97 @@ class SpeechAggregator:
             raise ValueError("Training LOO cannot include validation/test students")
         if not loo and set(ids)&self.train_students:
             raise ValueError("Inference contains fitted training student")
-        d=clips[clips.status=="VALID"].copy()
-        by_student={str(s):g for s,g in d.groupby("subject_id",sort=False)}
-        empty=d.iloc[:0]
-        cols=self.cols
-        rows=[]
-        for sid in ids:
-            g=by_student.get(sid,empty)
-            out={}
-            for task in ("blending","deletion","sentence_repetition"):
-                sub=g[g.task==task]
-                full=clips[(clips.subject_id.astype(str)==sid)&(clips.task==task)]
-                out[f"speech_{task}_n_valid"]=float(len(sub))
-                out[f"speech_{task}_fail_frac"]=float(
-                    1-len(sub)/len(full)) if len(full) else 0.
-                out[f"speech_{task}_n_unscored"]=float(pd.to_numeric(
-                    full.item_score,errors="coerce").isna().sum()) if "item_score" in full else 0.
-                if "localization_confidence" in sub:
-                    out[f"speech_{task}_loc_conf_mean"]=float(pd.to_numeric(
-                        sub.localization_confidence,errors="coerce").mean()) if len(sub) else 0.
-                for name in cols:
-                    vals=[];weights=[];statuses=[]
-                    for row in sub.itertuples(index=False):
-                        value=getattr(row,name,np.nan)
-                        try:value=float(value)
-                        except (ValueError,TypeError):value=np.nan
-                        if not np.isfinite(value):continue
-                        mean,std=self._norm(name,task,str(row.expected_text),sid,loo)
-                        norm=float(np.clip((value-mean)/std,-10,10))
-                        confidence=float(getattr(row,"localization_confidence",.5))
-                        rms=float(getattr(row,"rms",.03))
-                        w=max(.05,min(1.,confidence))*np.clip(rms/.06,.1,1.)
-                        vals.append(norm);weights.append(w)
-                        try:statuses.append(float(getattr(row,"item_score",np.nan)))
-                        except (ValueError,TypeError):statuses.append(np.nan)
-                    vals=np.asarray(vals,float);weights=np.asarray(weights,float)
-                    yy=np.asarray(statuses,float)
-                    prefix=f"speech_{task}_{name}"
-                    if len(vals):
-                        out[prefix+"_mean"]=float(np.average(vals,weights=weights)
-                            if self.weighted else np.mean(vals))
-                        out[prefix+"_std"]=float(np.std(vals))
-                        out[prefix+"_observed"]=float(len(vals))
-                        for label,mask in (("correct",yy>=.5),
-                                           ("incorrect",np.isfinite(yy)&(yy<.5))):
-                            out[prefix+"_"+label]=float(np.mean(vals[mask])) if mask.any() else 0.
-                    else:
-                        out[prefix+"_mean"]=np.nan
-                        out[prefix+"_std"]=np.nan
-                        out[prefix+"_observed"]=0.
-                        out[prefix+"_correct"]=0.
-                        out[prefix+"_incorrect"]=0.
-            rows.append(out)
-        return pd.DataFrame(rows,index=students.index)
+        # Vectorized 2-D per-row normalization: one NumPy array operation per
+        # observed student×item group, not a Python loop over every feature
+        # of every clip of every student.
+        d=clips.loc[clips.status=="VALID"].copy()
+        values=pd.DataFrame({k:pd.to_numeric(d[k],errors="coerce") if k in d
+                             else np.nan for k in self.cols},index=d.index)
+        raw=values.to_numpy(float)
+        n,k=raw.shape
+        means=np.zeros((n,k),float)
+        stds=np.ones((n,k),float)
+        if n:
+            group_index=d.groupby(["task","expected_text","subject_id"],
+                                  dropna=False,sort=False).indices
+            blank=np.zeros((3,k),float)
+            for (task,prompt,sid),positions in group_index.items():
+                task=str(task);prompt=str(prompt);sid=str(sid)
+                tm=self.task_stats.get(task,blank).copy()
+                im=self.item_stats.get((task,prompt),blank).copy()
+                if loo:
+                    tm-=self.self_task.get((sid,task),0)
+                    im-=self.self_item.get((sid,task,prompt),0)
+                use=np.where(im[0]>=self.min_item_support,im,tm)
+                count=use[0]
+                mean=np.divide(use[1],count,out=np.zeros(k,float),where=count>0)
+                var=np.divide(use[2],count,out=np.ones(k,float),where=count>0)-mean*mean
+                std=np.maximum(np.sqrt(np.maximum(0.,var)),.2)
+                means[positions,:]=mean
+                stds[positions,:]=std
+        norm=np.where(np.isfinite(raw),np.clip((raw-means)/stds,-10,10),np.nan)
+        norm_df=pd.DataFrame(norm,index=d.index,columns=self.cols)
+        norm_df["subject_id"]=d.subject_id.astype(str)
+        norm_df["task"]=d.task.astype(str)
+        score=pd.to_numeric(d.item_score,errors="coerce") if "item_score" in d else pd.Series(np.nan,index=d.index)
+        norm_df["correct"]=score>=.5
+        norm_df["incorrect"]=score.notna()&(score<.5)
+        conf=pd.to_numeric(d["localization_confidence"],errors="coerce") if "localization_confidence" in d else pd.Series(.5,index=d.index)
+        rms=pd.to_numeric(d["rms"],errors="coerce") if "rms" in d else pd.Series(.03,index=d.index)
+        norm_df["_weight"]=(conf.fillna(.05).clip(.05,1.)*
+                            (rms.fillna(0).clip(lower=0)/.06).clip(.1,1.))
+        full=clips.copy()
+        full["subject_id"]=full.subject_id.astype(str)
+        full["task"]=full.task.astype(str)
+        full_score=pd.to_numeric(full.item_score,errors="coerce") if "item_score" in full else pd.Series(np.nan,index=full.index)
+        full["_unscored"]=full_score.isna()
+        full_counts=full.groupby(["subject_id","task"]).size()
+        unscored=full.groupby(["subject_id","task"])["_unscored"].sum()
+        valid_counts=d.groupby(["subject_id","task"]).size()
+        result=pd.DataFrame(index=students.index)
+        for task in ("blending","deletion","sentence_repetition"):
+            part=norm_df[norm_df.task==task]
+            by=part.groupby("subject_id",sort=False)
+            if len(part):
+                st=by[list(self.cols)].std(ddof=0).reindex(ids)
+                ncol=by[list(self.cols)].count().reindex(ids).fillna(0)
+                corr=part[part.correct].groupby("subject_id")[list(self.cols)].mean().reindex(ids).fillna(0)
+                wrong=part[part.incorrect].groupby("subject_id")[list(self.cols)].mean().reindex(ids).fillna(0)
+                if self.weighted:
+                    weights=part["_weight"].to_numpy(float)
+                    a=part[list(self.cols)]
+                    num=a.mul(weights,axis=0).groupby(part.subject_id).sum(min_count=1).reindex(ids)
+                    den=pd.DataFrame(np.where(np.isfinite(a.to_numpy(float)),
+                                  weights[:,None],0.),
+                                  columns=self.cols,index=part.index).groupby(
+                                  part.subject_id).sum().reindex(ids).fillna(0)
+                    mu=num.div(den.where(den>0))
+                else:
+                    mu=by[list(self.cols)].mean().reindex(ids)
+                confidence=by["_weight"].mean().reindex(ids).fillna(0)
+            else:
+                st=mu=pd.DataFrame(np.nan,index=ids,columns=self.cols)
+                ncol=corr=wrong=pd.DataFrame(0.,index=ids,columns=self.cols)
+                confidence=pd.Series(0.,index=ids)
+            valid=valid_counts.reindex(
+                pd.MultiIndex.from_product([ids,[task]])).fillna(0).to_numpy(float)
+            total=full_counts.reindex(
+                pd.MultiIndex.from_product([ids,[task]])).fillna(0).to_numpy(float)
+            us=unscored.reindex(
+                pd.MultiIndex.from_product([ids,[task]])).fillna(0).to_numpy(float)
+            result[f"speech_{task}_n_valid"]=valid
+            result[f"speech_{task}_fail_frac"]=np.divide(total-valid,total,
+                                         out=np.zeros(len(ids)),where=total>0)
+            result[f"speech_{task}_n_unscored"]=us
+            result[f"speech_{task}_loc_conf_mean"]=confidence.to_numpy(float)
+            for key in self.cols:
+                prefix=f"speech_{task}_{key}"
+                result[prefix+"_mean"]=mu[key].to_numpy(float)
+                result[prefix+"_std"]=st[key].to_numpy(float)
+                result[prefix+"_observed"]=ncol[key].to_numpy(float)
+                result[prefix+"_correct"]=corr[key].to_numpy(float)
+                result[prefix+"_incorrect"]=wrong[key].to_numpy(float)
+        return result
 
     def transform_train(self,students,clips):
         return self._features(students,clips,self.student_loo)
@@ -190,5 +228,5 @@ def available_families(clips):
         eligible[arm]={"available_columns":have,"requested_columns":len(names),
                       "eligible":bool(have>=1 and
                          (arm not in WORD_REQUIRED or "word_coverage" in present) and
-                         (arm not in CORRECTNESS_REQUIRED or "clip_pred_correct" in present))}
+                         (arm not in CORRECTNESS_REQUIRED or "child_phone_edit_rate" in present))}
     return eligible
