@@ -32,7 +32,12 @@ class ItemMatrix:
         by_student=d.groupby(["key","subject_id"]).item_score.agg(["sum","count"])
         self.student_stats={(str(k),str(s)):(float(r["sum"]),int(r["count"]))
                             for (k,s),r in by_student.iterrows()}
-        self.prior_global=float(d.item_score.mean()) if len(d) else .5
+        self.global_sum=float(d.item_score.sum())
+        self.global_count=int(len(d))
+        self.student_totals={
+            str(sid):(float(g.item_score.sum()),len(g))
+            for sid,g in d.groupby("subject_id",sort=False)}
+        self.prior_global=self.global_sum/self.global_count if self.global_count else .5
         self.index={k:i for i,k in enumerate(self.keys)}
         self.columns_=[f"i1_item_{i:03d}_excess" for i in range(len(self.keys))]+[
                        f"i1_item_{i:03d}_observed" for i in range(len(self.keys))]
@@ -45,7 +50,14 @@ class ItemMatrix:
         if loo:
             a,b=self.student_stats.get((key,sid),(0.,0))
             s-=a;n-=b
-        return (s+self.kappa*self.prior_global)/(n+self.kappa)
+        if loo:
+            self_sum,self_n=self.student_totals.get(sid,(0.,0))
+            global_s=self.global_sum-self_sum
+            global_n=self.global_count-self_n
+            global_p=(global_s/global_n) if global_n else .5
+        else:
+            global_p=self.prior_global
+        return (s+self.kappa*global_p)/(n+self.kappa)
 
     def _transform(self,students,clips,loo):
         validate_inputs(students,clips)

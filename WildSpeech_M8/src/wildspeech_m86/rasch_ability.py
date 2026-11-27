@@ -117,8 +117,8 @@ class RaschAbility:
         return self._score(students,clips)
 
     def transform_train(self,students,clips):
-        if students.index.astype(str).tolist()!=sorted(self.train_ids,key=lambda x:
-                      students.index.astype(str).tolist().index(x)) and set(students.index.astype(str))!=self.train_ids:
+        ids=students.index.astype(str).tolist()
+        if len(ids)!=len(self.train_ids) or set(ids)!=self.train_ids:
             raise ValueError("Wrong Rasch training student set")
         if len(students)<self.crossfit:
             raise ValueError("Too few students to cross-fit Rasch")
