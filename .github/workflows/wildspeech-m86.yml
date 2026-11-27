@@ -6,6 +6,8 @@ on:
     paths:
       - 'WildSpeech_M8/src/wildspeech_m86/**'
       - 'WildSpeech_M8/tests/test_m86_*.py'
+      - 'WildSpeech_M8/tests/test_m85_*.py'
+      - 'WildSpeech_M8/tests/test_m84_*.py'
       - 'WildSpeech_M8/notebooks/WILDSPEECH_M86_M0PP_MASTER.ipynb'
       - 'WildSpeech_M8/pyproject.toml'
       - '.github/workflows/wildspeech-m86.yml'
@@ -13,6 +15,8 @@ on:
     paths:
       - 'WildSpeech_M8/src/wildspeech_m86/**'
       - 'WildSpeech_M8/tests/test_m86_*.py'
+      - 'WildSpeech_M8/tests/test_m85_*.py'
+      - 'WildSpeech_M8/tests/test_m84_*.py'
       - 'WildSpeech_M8/notebooks/WILDSPEECH_M86_M0PP_MASTER.ipynb'
   workflow_dispatch:
 jobs:
