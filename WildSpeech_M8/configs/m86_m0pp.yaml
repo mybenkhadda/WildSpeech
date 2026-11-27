@@ -1,0 +1,52 @@
+# WildSpeech M8.6 — frozen item-response and screening milestone
+# 0.23 is an exploratory ambition, NOT an acceptance threshold.
+anchors:
+  m84_fold_sha256: 6ee0f59c8cf5ea3d8f20f5fd500353419587660e00949ac6f1e6a16e092c9ce1
+  m84_mean_fold_r2: 0.193227
+  m84_student_pooled_r2: 0.199113
+  m85_e04_student_pooled_r2: 0.21263
+  m85_e04_status: HOLD_REFERENCE
+models:
+  full: [B1, B2, B3, I1, I2, I3, I4, I5, D2, D3, T1]
+  primary_science_hypotheses: [B1, B2, I5]
+  ridge_alphas: [1.0, 10.0, 100.0, 1000.0]
+  inner_folds: 3
+  catboost_full:
+    depth: 2
+    learning_rate: 0.03
+    l2_leaf_reg: 20
+    iterations: 600
+    seeds: [42, 43, 44, 45, 46]
+  blend_weight_grid: [0, 0.25, 0.5, 0.75, 1.0]
+  rasch:
+    discrimination: 1.0
+    student_crossfit: 3
+    iterations: 7
+  item:
+    matrix_min_students: 6
+    matrix_max_items: 160
+    no_item_chronology: true
+    word_frequency_without_audited_license: false
+gates:
+  engineering:
+    student_pooled_delta_r2_positive: true
+    student_fold_win_fraction: 0.65
+    min_school_delta_r2: -0.005
+    min_instrument_delta_r2: -0.01
+  science:
+    min_mean_fold_delta_r2: 0.010
+    corrected_t: 2.0
+    min_student_fold_win_fraction: 0.60
+    min_school_delta_r2: -0.005
+    min_instrument_delta_r2: -0.01
+security:
+  fit_on_test: false
+  server_audio_api: false
+  student_independent_inference: true
+  auto_submit: false
+  preserve_m84_m85: true
+artifacts:
+  base: MyDrive/WildSpeech_M86/m0pp
+  screen: screen/
+  full: full/
+  diagnostic_e04: diagnostic_e04/

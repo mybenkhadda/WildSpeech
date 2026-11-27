@@ -140,3 +140,18 @@ SCREEN is exploratory (1/10 repeats); FULL requires all 100 original folds, fixe
     python -m pip install -e './WildSpeech_M8[test]'
     python -m wildspeech_m85.experiments --drive-root /content/drive/MyDrive --mode SCREEN
     python -m wildspeech_m85.experiments --drive-root /content/drive/MyDrive --mode FULL
+
+
+## M8.6 — M0++ Item-response intelligence
+
+[Open M8.6 Google Colab](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M86_M0PP_MASTER.ipynb) · [Read M8.6 documentation](docs/M86_M0PP.md).
+
+M8.6 uses the immutable M8.4 100-fold protocol and the completed M8.5 E04 OOF as its matched baseline. B1 adds Ridge/CatBoost fusion to **E04 full features**; B2 is a constrained monotone theta GAM; B3 simplifies the screening stack; I1–I5 model prompt-level responses, cross-fitted Rasch ability, prompt complexity and difficulty; D2–D3 implement instrument/deletion-availability partial pooling; T1 controls for item-normalized clip duration. All feature parameters and hyperparameters are fitted inside the appropriate training folds.
+
+M8.6 distinguishes engineering submission eligibility from stricter scientific evidence. E04 diagnostic export is a separate optional action and never rewrites M8.5 HOLD_REFERENCE. SCREEN is exploratory; only all eleven FULL model arms can select a new M0++ candidate. No M8.6 real-data result or public leaderboard score is claimed by source code.
+
+~~~bash
+python -m pip install -e './WildSpeech_M8[test]'
+python -m wildspeech_m86.experiments --drive-root /content/drive/MyDrive --mode SCREEN
+python -m wildspeech_m86.experiments --drive-root /content/drive/MyDrive --mode FULL
+~~~
