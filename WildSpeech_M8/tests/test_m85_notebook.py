@@ -20,7 +20,8 @@ def test_colab_contract_syntax_and_order():
     joined="\n".join(codes)
     assert len(codes)>=10 and len(nb["cells"])>=20
     assert joined.index("drive.mount(")<joined.index("execute(")
-    assert 'MODE="SCREEN"' in joined
+    # Committed notebooks may retain a completed FULL execution or a fresh SCREEN template.
+    assert 'MODE="SCREEN"' in joined or 'MODE="FULL"' in joined
     for term in ("EVAL_HASH_2026","PHASE0_ROOT","M85_M0PLUS_DECISION.md",
                  "locked_plan()","reference_metrics","RESULT[\"decision\"]"):
         assert term in joined
