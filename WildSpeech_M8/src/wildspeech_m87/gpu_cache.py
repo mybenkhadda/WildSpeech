@@ -287,6 +287,15 @@ def load_features(root,word_optional=True):
     f=pd.read_parquet(root/"features"/"phonetic_clip_features_PRIVATE.parquet")
     if word_optional and (root/"features"/"word_asr_PRIVATE.parquet").is_file():
         w=pd.read_parquet(root/"features"/"word_asr_PRIVATE.parquet")
-        # Preserve raw word result only once; no prompt-dependent ASR decoder.
+        # The phonetic extraction marks word_partial_available=0 (unavailable)
+        # until the optional word recognizer has run. Replace that PLACEHOLDER
+        # with the actual word result; do not create misleading _x/_y columns.
+        shared=(set(f.columns)&set(w.columns))-{"uid"}
+        if shared-{"word_partial_available"}:
+            raise RuntimeError(f"Unexpected word/phonetic feature name collision: {shared}")
+        if "word_partial_available" in shared:
+            f=f.drop(columns=["word_partial_available"])
+        if w.uid.duplicated().any():
+            raise RuntimeError("Duplicate word cache IDs")
         f=f.merge(w,on="uid",how="left",validate="one_to_one")
     return f
