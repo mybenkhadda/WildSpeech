@@ -1,0 +1,33 @@
+name: WildSpeech M8.7 audio and scientific CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'WildSpeech_M8/src/wildspeech_m87/**'
+      - 'WildSpeech_M8/tests/test_m87_*.py'
+      - 'WildSpeech_M8/notebooks/WILDSPEECH_M87_SPEECH_EVIDENCE_MASTER.ipynb'
+      - 'WildSpeech_M8/pyproject.toml'
+      - '.github/workflows/wildspeech-m87.yml'
+  pull_request:
+    paths:
+      - 'WildSpeech_M8/src/wildspeech_m87/**'
+      - 'WildSpeech_M8/tests/test_m87_*.py'
+      - 'WildSpeech_M8/notebooks/WILDSPEECH_M87_SPEECH_EVIDENCE_MASTER.ipynb'
+  workflow_dispatch:
+jobs:
+  m87-synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install only CPU scientific/test dependencies, no model downloads
+        run: python -m pip install -e './WildSpeech_M8[test]'
+      - name: Validate M8.7 audio contracts and synthetic fold experiments
+        run: python -m pytest -q -v WildSpeech_M8/tests/test_m87_*.py
+      - name: Verify M8.4–M8.6 scientific baselines are not broken
+        run: python -m pytest -q WildSpeech_M8/tests/test_m84_*.py WildSpeech_M8/tests/test_m85_*.py WildSpeech_M8/tests/test_m86_*.py

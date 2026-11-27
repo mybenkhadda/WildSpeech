@@ -1,0 +1,49 @@
+milestone: M8.7
+status: CODE_ONLY_UNTIL_PRIVATE_GPU_RUN
+evaluation:
+  original_fold_sha256: 6ee0f59c8cf5ea3d8f20f5fd500353419587660e00949ac6f1e6a16e092c9ce1
+  reference: M8.4 E00
+  main_baseline: M8.6 I5
+  school_transfer_baseline: M8.6 I4
+  preregistered_arms: [A00,A01,A02,A03,A04,A05,A06,A07,A08,A09,A10,A11,A12,A13,A14,A15,A16]
+  main_hypotheses: [A02,A03,A07,A08,A09,A16]
+  negative_controls: [A04,A05,A15]
+  student_outer_folds: 50
+  school_outer_folds: 50
+  inner_student_folds: 3
+audio:
+  repository: drivendata/pasketti-phonetic
+  fp32_required: true
+  sample_rate_hz: 16000
+  duration_bucket: true
+  max_clip_seconds: 30
+  batch_size: 2
+  shard_size: 48
+  wavlm_layers: [6,7,8,9,10]
+  store_logits: float16_compressed
+  store_pooled_states: float16_compressed
+  word_asr:
+    repo: drivendata/pasketti-word
+    optional_separate_gpu_runtime: true
+    focus_task: sentence_repetition
+  vad: silero
+  localization:
+    method: ctc_late_prior_v1
+    mandatory_training_qa: true
+    minimum_reviewed_accuracy: 0.80
+    minimum_per_group_accuracy_n5: 0.65
+    max_false_adult_selection: 0.10
+safety:
+  fit_on_hidden_test: false
+  listen_to_hidden_test: false
+  cloud_audio_inference_api: false
+  require_license_review: true
+  allow_random_segment_negative_control: true
+  all_model_output_private: true
+artifacts:
+  root: MyDrive/WildSpeech_M87/speech
+  figures: figures/
+  cache: shards/
+  clip_features: features/phonetic_clip_features_PRIVATE.parquet
+  outcomes: evaluations/full/reports/M87_RESULTS.json
+  report: evaluations/full/reports/M87_DECISION.md

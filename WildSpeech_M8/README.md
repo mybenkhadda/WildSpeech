@@ -155,3 +155,22 @@ python -m pip install -e './WildSpeech_M8[test]'
 python -m wildspeech_m86.experiments --drive-root /content/drive/MyDrive --mode SCREEN
 python -m wildspeech_m86.experiments --drive-root /content/drive/MyDrive --mode FULL
 ~~~
+
+
+## M8.7 — Pasketti ASR, Child Response Localization, and Speech Evidence
+
+[Open 50-cell M8.7 Colab notebook](https://colab.research.google.com/github/mybenkhadda/WildSpeech/blob/main/WildSpeech_M8/notebooks/WILDSPEECH_M87_SPEECH_EVIDENCE_MASTER.ipynb) · [Read exhaustive technical runbook](docs/M87_SPEECH_EVIDENCE.md).
+
+The new wildspeech_m87 package performs local FP32 Pasketti-phonetic GPU inference, optional Pasketti Word in a separate vLLM-compatible environment, phonetic target mapping, VAD/child-candidate localization, pure NumPy CTC forward/Viterbi, pronunciation/graded-correctness and task-specific features. A sharded private cache covers the full 24,518-clip inventory with explicit success/failure status and resume support.
+
+A00–A16 evaluate whole clips versus localized candidates, child-phone confidence, sentence partial credit, blending/deletion error topology, student-grouped clip correctness, missing-score recovery, reliability weighting, WavLM embeddings, train-only residual models, inner-OOF stacking, and multiple negative controls on the original M8.4 student and school folds. All graphs are produced from real executed private data, never invented metrics. Engineering and science gates are separate; manual training-only localization QA and independently checked test predictions are required for a new candidate CSV. The original M8.6 I5/I4 and M8.4 reference baselines are preserved.
+
+~~~bash
+pip install -e './WildSpeech_M8[m87,test]'
+wildspeech-m87 --stage preflight --drive-root /content/drive/MyDrive
+wildspeech-m87 --stage extract --acknowledge-license-review --train-tar /private/train.tar --test-tar /private/test.tar
+wildspeech-m87 --stage evaluate --mode SCREEN
+wildspeech-m87 --stage evaluate --mode FULL
+~~~
+
+**Evidence status:** code + synthetic testing; no official M8.7 scores or public leaderboard upload are claimed until the private GPU and frozen-fold studies run.
