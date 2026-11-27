@@ -92,7 +92,10 @@ def test_all_reported_arm_ids_and_model_synthetic():
     y=np.random.default_rng(11).normal(100,8,len(tr))
     ctx=FoldStudy(tr,clips,d,y,np.arange(26),np.arange(26,36),
                   seed=42,rasch_iters=3,inner_k=3)
-    for arm in ("A00","A02","A04","A07","A12","A14","A16"):
+    # Every preregistered experiment must train and predict on a genuinely
+    # student-disjoint outer validation set (not just the flagship arms).
+    from wildspeech_m87.contracts import EXPERIMENTS
+    for arm in EXPERIMENTS:
         pred,meta=ctx.predict(arm)
         assert len(pred)==10 and np.isfinite(pred).all(),arm
         assert meta["model_family"]
