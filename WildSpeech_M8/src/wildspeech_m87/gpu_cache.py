@@ -265,13 +265,13 @@ def extract_words(config,inventory,max_clips=0,batch_size=8,
                     records.append({"uid":row.uid,"word_status":"FAILED",
                                     "word_failure":str(exc)[:250],
                                     "word_segment_source":"selected_response_v1",
-                                    "localization_confidence":confidence})
+                                    "word_localization_confidence":confidence})
             else:
                 for (row,_,confidence),hyp in zip(work,decoded):
                     stats=word_partial_credit(row.expected_text,hyp["word_transcript"])
                     records.append({"uid":row.uid,"word_status":"VALID",
                         "word_segment_source":"selected_response_v1",
-                        "localization_confidence":confidence,**hyp,**stats})
+                        "word_localization_confidence":confidence,**hyp,**stats})
         # Save even when all clips fail; never silently discard failures.
         tmp=pd.concat([old,pd.DataFrame(records)],ignore_index=True)
         if tmp.uid.duplicated().any():raise RuntimeError("Repeated Word ASR UID")
