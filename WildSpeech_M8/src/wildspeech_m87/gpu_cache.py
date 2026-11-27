@@ -136,22 +136,27 @@ def extract(config,inventory,phone=None,vad=None,shard_size=48,max_clips=0,
             vad_method="silero"):
     config.validate()
     root=config.output();root.mkdir(parents=True,exist_ok=True)
+    # Resolve the immutable MODEL revision *before* deciding whether a shard
+    # is reusable. An unpinned moving "main" revision must never share
+    # posterior caches with a different set of model weights.
+    if phone is None:
+        from .phonetic_asr import PhoneticASR
+        phone=PhoneticASR(revision=config.phonetic_revision,
+                          layers=config.layer_indices,max_seconds=config.max_seconds)
+    resolved_revision=str(getattr(phone,"revision",config.phonetic_revision))
+    if not resolved_revision:
+        raise RuntimeError("Model revision must be pinned before extraction")
     manifest=root/"manifests"/"extraction.json"
     fingerprint=sha_json({"inventory":inventory_hash(inventory),
-        "phonetic_revision":config.phonetic_revision,
+        "phonetic_revision":resolved_revision,
         "max_seconds":config.max_seconds,"layers":config.layer_indices,
-        "vad_method":vad_method,"cache_contract":"m87-v1"})
+        "vad_method":vad_method,"cache_contract":"m87-v2"})
     if manifest.is_file():
         old=json.loads(manifest.read_text())
         if old["fingerprint"]!=fingerprint:raise RuntimeError(
             "Cache input/model/config changed. Select a NEW output_root; do not mix versions.")
     else:atomic_json(manifest,{"fingerprint":fingerprint,"expected":len(inventory),
-                               "contract":"m87-v1"})
-    # Heavy initialization ONLY after manifest validation.
-    if phone is None:
-        from .phonetic_asr import PhoneticASR
-        phone=PhoneticASR(revision=config.phonetic_revision,
-                          layers=config.layer_indices,max_seconds=config.max_seconds)
+                               "contract":"m87-v2","resolved_phonetic_revision":resolved_revision})
     if vad is None:vad=VAD(vad_method)
     sources=create_sources(config,root)
     registry=TargetRegistry(phone.processor.tokenizer)
