@@ -207,11 +207,25 @@ def summarize_cache(root,inventory,strict=True):
 
 def extract_words(config,inventory,max_clips=0,batch_size=8,
                   sentence_only=True):
-    """Separate GPU phase: avoid loading Pasketti Word and WavLM simultaneously."""
+    """Separate GPU process: unprompted word ASR on LOCALIZED answer only.
+
+    Never decode the adult-containing whole recording for partial-credit
+    features; doing so could achieve fake success by transcribing the prompt.
+    Unknown/no-response localization is a FAILED clip, not a zero score.
+    """
     config.validate()
     from .word_asr import WordASR
     root=config.output();out=root/"features"/"word_asr_PRIVATE.parquet"
+    original=root/"features"/"phonetic_clip_features_PRIVATE.parquet"
+    if not original.is_file():
+        raise RuntimeError("Run Pasketti phonetic and child localizer BEFORE word ASR")
+    loc=pd.read_parquet(original,columns=[
+        "uid","status","response_start_s","response_end_s",
+        "localization_confidence","no_child_response"])
+    if loc.uid.duplicated().any():raise RuntimeError("Duplicate localization UID")
+    lookup=loc.set_index("uid")
     old=pd.read_parquet(out) if out.exists() else pd.DataFrame(columns=["uid"])
+    if old.uid.duplicated().any():raise RuntimeError("Duplicate word ASR cache UID")
     have=set(old.uid)
     todo=inventory[(inventory.task=="sentence_repetition") if sentence_only
                    else np.ones(len(inventory),dtype=bool)]
@@ -220,30 +234,53 @@ def extract_words(config,inventory,max_clips=0,batch_size=8,
     sources=create_sources(config,root)
     model=WordASR(revision=config.word_revision,batch_size=batch_size)
     records=[]
-    for start in tqdm(range(0,len(todo),batch_size),desc="Pasketti Word local"):
+    for start in tqdm(range(0,len(todo),batch_size),desc="Pasketti Word localized"):
         subset=todo.iloc[start:start+batch_size]
         work=[]
         for row in subset.itertuples(index=False):
             try:
-                wave,_,_,_=sources[row.split].decode(row.filename)
-                work.append((row,wave))
-            except Exception as e:
-                records.append({"uid":row.uid,"word_status":"FAILED","word_failure":str(e)[:250]})
-        if not work:continue
-        try:decoded=model.transcribe([x[1] for x in work])
-        except Exception as e:
-            for row,_ in work:
-                records.append({"uid":row.uid,"word_status":"FAILED","word_failure":str(e)[:250]})
-            continue
-        for (row,_),hyp in zip(work,decoded):
-            stats=word_partial_credit(row.expected_text,hyp["word_transcript"])
-            records.append({"uid":row.uid,"word_status":"VALID",**hyp,**stats})
-        # Save on every batch, not only at end of long Qwen inference.
+                if row.uid not in lookup.index:
+                    raise ValueError("Missing phonetic/localization artifact")
+                z=lookup.loc[row.uid]
+                if str(z.status)!="VALID" or bool(z.no_child_response):
+                    raise ValueError("No valid selected child-answer candidate")
+                s=float(z.response_start_s);e=float(z.response_end_s)
+                wave,sr,_,_=sources[row.split].decode(row.filename)
+                if not np.isfinite([s,e]).all() or s<0 or e-s<.15:
+                    raise ValueError("Invalid/too short response candidate")
+                left=max(0,int((s-.05)*sr))
+                right=min(len(wave),int((e+.05)*sr))
+                if right-left<.15*sr:
+                    raise ValueError("Insufficient selected response audio")
+                work.append((row,wave[left:right],float(z.localization_confidence)))
+            except Exception as exc:
+                records.append({"uid":row.uid,"word_status":"FAILED",
+                    "word_failure":str(exc)[:250],
+                    "word_segment_source":"selected_response_v1"})
+        if work:
+            try:
+                decoded=model.transcribe([x[1] for x in work])
+            except Exception as exc:
+                for row,_,confidence in work:
+                    records.append({"uid":row.uid,"word_status":"FAILED",
+                                    "word_failure":str(exc)[:250],
+                                    "word_segment_source":"selected_response_v1",
+                                    "localization_confidence":confidence})
+            else:
+                for (row,_,confidence),hyp in zip(work,decoded):
+                    stats=word_partial_credit(row.expected_text,hyp["word_transcript"])
+                    records.append({"uid":row.uid,"word_status":"VALID",
+                        "word_segment_source":"selected_response_v1",
+                        "localization_confidence":confidence,**hyp,**stats})
+        # Save even when all clips fail; never silently discard failures.
         tmp=pd.concat([old,pd.DataFrame(records)],ignore_index=True)
         if tmp.uid.duplicated().any():raise RuntimeError("Repeated Word ASR UID")
         _atomic_parquet(tmp,out)
     if not out.exists():_atomic_parquet(old,out)
-    return {"n_completed":int(len(pd.read_parquet(out))),"path":str(out)}
+    final=pd.read_parquet(out)
+    return {"n_completed":len(final),
+            "n_valid":int((final.get("word_status",pd.Series(dtype=str))=="VALID").sum()),
+            "path":str(out),"word_segment_source":"selected_response_v1"}
 
 def load_features(root,word_optional=True):
     root=Path(root)
