@@ -46,13 +46,14 @@ def fake_clips(train,clip):
               "word_endings_coverage","word_normalized_edits",
               "word_deletions","word_substitutions"):
         d[c]=rng.uniform(0,1,len(d))
+    additions={}
     for layer in (6,7,8,9,10):
         for k in range(24):
-            d[f"layer_{layer:02d}_{k:02d}"]=rng.normal(size=len(d))
-    d["random_phone_edit_rate"]=rng.uniform(0,1,len(d))
-    d["random_posterior_entropy"]=rng.uniform(.2,1.,len(d))
-    d["random_target_logp_per_phone"]=rng.normal(-2,.4,len(d))
-    return d
+            additions[f"layer_{layer:02d}_{k:02d}"]=rng.normal(size=len(d))
+    additions["random_phone_edit_rate"]=rng.uniform(0,1,len(d))
+    additions["random_posterior_entropy"]=rng.uniform(.2,1.,len(d))
+    additions["random_target_logp_per_phone"]=rng.normal(-2,.4,len(d))
+    return pd.concat([d,pd.DataFrame(additions,index=d.index)],axis=1)
 
 def test_clip_correctness_group_heldout_and_unscored():
     tr,clips,te,tclips=screening_fixture(n=27,ntest=6)
@@ -80,7 +81,7 @@ def test_training_normalization_loo_and_student_isolation():
     for sid in te.index:
         one=agg.transform(te.loc[[sid]],test[test.subject_id==sid])
         pd.testing.assert_frame_equal(one,xv.loc[[sid]])
-    with pytest.raises(ValueError,match="Training"):
+    with pytest.raises(ValueError,match="training student"):
         agg.transform(tr.iloc[:1],train[train.subject_id==tr.index[0]])
 
 def test_all_reported_arm_ids_and_model_synthetic():

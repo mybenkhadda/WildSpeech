@@ -168,7 +168,7 @@ class SpeechAggregator:
         full_counts=full.groupby(["subject_id","task"]).size()
         unscored=full.groupby(["subject_id","task"])["_unscored"].sum()
         valid_counts=d.groupby(["subject_id","task"]).size()
-        result=pd.DataFrame(index=students.index)
+        result={}  # build column arrays once; avoid 2,000 fragmented inserts
         for task in ("blending","deletion","sentence_repetition"):
             part=norm_df[norm_df.task==task]
             by=part.groupby("subject_id",sort=False)
@@ -211,7 +211,7 @@ class SpeechAggregator:
                 result[prefix+"_observed"]=ncol[key].to_numpy(float)
                 result[prefix+"_correct"]=corr[key].to_numpy(float)
                 result[prefix+"_incorrect"]=wrong[key].to_numpy(float)
-        return result
+        return pd.DataFrame(result,index=students.index)
 
     def transform_train(self,students,clips):
         return self._features(students,clips,self.student_loo)
