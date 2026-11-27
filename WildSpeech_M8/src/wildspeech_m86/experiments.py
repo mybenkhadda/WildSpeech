@@ -269,8 +269,8 @@ def execute(drive_root="/content/drive/MyDrive",data_root_override="",
     manifest={"mode":mode,"fold_hash":fold_hash,"git_sha":git_sha,
               "reference_oof_sha256":ref_sha,"e04_oof_sha256":e04_sha,
               "e04_run_id":e04_id,"train_source_hash":raw_hash,
-              "run_models":chosen,"cat_iterations":cat_iterations,
-              "cat_seeds":seeds,"rasch_iters":rasch_iters,
+              "run_models":list(chosen),"cat_iterations":cat_iterations,
+              "cat_seeds":list(seeds),"rasch_iters":rasch_iters,
               "rasch_crossfit":rasch_crossfit,
               "fitted_test_statistics":False,"executed_utc":utc_now()}
     # Manifest is immutable by configuration; never overwrite a different run.
