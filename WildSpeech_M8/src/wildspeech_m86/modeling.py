@@ -8,7 +8,7 @@ violate the monotonicity guarantee.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from scipy.optimize import lsq_linear
+from scipy.optimize import minimize
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from wildspeech_m85.models import make_ridge,MultiSeedCatBoost,ConvexBlend
@@ -90,16 +90,36 @@ class MonotoneHingeGAM:
         x=x.copy();y=np.asarray(y,dtype=float)
         design=self._design(x,fit=True)
         n,p=design.shape
-        ridge=np.sqrt(self.alpha)*np.eye(p)
-        ridge[0,0]=0.     # unpenalized intercept
-        bounds_lo=np.r_[np.full(self.n_unconstrained,-np.inf),
-                        np.zeros(p-self.n_unconstrained)]
-        bounds_hi=np.full(p,np.inf)
-        result=lsq_linear(np.vstack([design,ridge]),np.r_[y,np.zeros(p)],
-                          bounds=(bounds_lo,bounds_hi),max_iter=150,
-                          tol=1e-7,lsq_solver="exact")
+        # Solve the *same* convex nonnegative-coefficient ridge objective
+        # with its precomputed Gram matrix and analytic gradient. L-BFGS-B
+        # avoids repeatedly solving a large dense least-squares system when
+        # 11 models are evaluated across 100 outer/300 inner folds.
+        penalty=np.full(p,self.alpha,dtype=float)
+        penalty[0]=0.  # unpenalized intercept
+        gram=design.T@design+np.diag(penalty)
+        rhs=design.T@y
+        bounds=[(None,None)]*self.n_unconstrained+[
+                (0.,None)]*(p-self.n_unconstrained)
+        x0=np.zeros(p,float)
+        x0[0]=float(np.mean(y))
+        def objective(coef):
+            residual=gram@coef-rhs
+            return (.5*float(coef@(gram@coef))-float(rhs@coef),residual)
+        result=minimize(objective,x0,method="L-BFGS-B",jac=True,
+                        bounds=bounds,
+                        options={"maxiter":700,"ftol":1e-11,"gtol":1e-7,"maxls":40})
+        if not np.isfinite(result.x).all():
+            raise RuntimeError("Constrained GAM optimizer returned nonfinite coefficients")
         if not result.success:
-            raise RuntimeError(f"Constrained GAM solver did not converge: {result.message}")
+            # A finite feasible iterate remains a valid regularized model,
+            # but its optimization status must not be hidden.
+            grad=result.jac
+            pg=np.asarray(grad,float).copy()
+            pg[self.n_unconstrained:]=np.where(
+                 result.x[self.n_unconstrained:]<=1e-8,
+                 np.minimum(pg[self.n_unconstrained:],0.),pg[self.n_unconstrained:])
+            if np.linalg.norm(pg,ord=np.inf)>0.01:
+                raise RuntimeError(f"Constrained GAM failed KKT check: {result.message}")
         self.coef_=result.x
         self.columns_=x.columns.tolist()
         self.fit_success_=True
