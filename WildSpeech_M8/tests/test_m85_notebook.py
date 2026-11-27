@@ -13,7 +13,10 @@ def test_colab_contract_syntax_and_order():
             code="".join(c["source"])
             ast.parse(code,filename=f"m85_cell{idx}.py")
             codes.append(code)
-            assert c["outputs"]==[]
+            # Executed research notebooks deliberately retain real-data outputs.
+            # Validate JSON/schema and code syntax without erasing the evidence.
+            assert isinstance(c.get("outputs",[]),list)
+            assert c.get("execution_count") is None or isinstance(c["execution_count"],int)
     joined="\n".join(codes)
     assert len(codes)>=10 and len(nb["cells"])>=20
     assert joined.index("drive.mount(")<joined.index("execute(")
