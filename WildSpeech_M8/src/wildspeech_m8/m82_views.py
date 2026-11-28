@@ -89,7 +89,7 @@ class ViewBuilder:
         self.columns_=select_views(df,self.max_per_view,self.min_nonmissing)
         self.params_={}
         for name,cols in self.columns_.items():
-            a=df.reindex(columns=cols).apply(pd.to_numeric,errors='coerce').to_numpy(float)
+            a=df.reindex(columns=cols).apply(pd.to_numeric,errors='coerce').to_numpy(dtype=float,copy=True)
             a[~np.isfinite(a)]=np.nan
             means=np.nanmedian(a,axis=0)
             means=np.nan_to_num(means,nan=0.,posinf=0.,neginf=0.)
@@ -114,7 +114,7 @@ class ViewBuilder:
     def _transform_basic(self,df):
         out={}
         for name,cols in self.columns_.items():
-            data=df.reindex(columns=cols).apply(pd.to_numeric,errors='coerce').to_numpy(float)
+            data=df.reindex(columns=cols).apply(pd.to_numeric,errors='coerce').to_numpy(dtype=float,copy=True)
             data[~np.isfinite(data)]=np.nan
             obs=np.isfinite(data)
             med,center,spread=self.params_[name]
