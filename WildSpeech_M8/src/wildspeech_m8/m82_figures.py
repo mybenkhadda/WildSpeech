@@ -84,7 +84,8 @@ def generate_atlas(result,out,score_summary=None,predictive=None,component_nodes
         vals=[p.loc[p.category==c,'screening_residual_gap'].dropna().to_numpy() for c in cat.index if 'screening_residual_gap' in p]
         if vals and any(len(z)>0 for z in vals):
             cats=[c for c in cat.index if len(p.loc[p.category==c,'screening_residual_gap'].dropna())]
-            plt.figure(figsize=(10,5));plt.boxplot([z[:3000] for z in vals if len(z)],labels=cats,showfliers=False)
+            plt.figure(figsize=(10,5));plt.boxplot([z[:3000] for z in vals if len(z)],showfliers=False)
+            plt.xticks(np.arange(1,len(cats)+1),cats)
             plt.xticks(rotation=20,ha='right');plt.ylabel('OOF baseline residual gap')
             plt.title('M82-09 · Residual heterogeneity by pair category')
             save('M82_09_pair_residual_gap.png')
