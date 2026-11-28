@@ -291,7 +291,7 @@ def summarize_cache(root,inventory,strict=True):
     return counts
 
 def extract_words(config,inventory,max_clips=0,batch_size=8,
-                  sentence_only=True):
+                  sentence_only=True,checkpoint_batches=8):
     """Separate GPU process: unprompted word ASR on LOCALIZED answer only.
 
     Never decode the adult-containing whole recording for partial-credit
@@ -319,7 +319,10 @@ def extract_words(config,inventory,max_clips=0,batch_size=8,
     sources=create_sources(config,root)
     model=WordASR(revision=config.word_revision,batch_size=batch_size)
     records=[]
-    for start in tqdm(range(0,len(todo),batch_size),desc="Pasketti Word localized"):
+    total_batches=(len(todo)+batch_size-1)//batch_size
+    if checkpoint_batches<1:raise ValueError("checkpoint_batches must be positive")
+    for batch_num,start in enumerate(tqdm(range(0,len(todo),batch_size),
+                                           desc="Pasketti Word localized")):
         subset=todo.iloc[start:start+batch_size]
         work=[]
         for row in subset.itertuples(index=False):
@@ -352,15 +355,22 @@ def extract_words(config,inventory,max_clips=0,batch_size=8,
                                     "word_segment_source":"selected_response_v1",
                                     "word_localization_confidence":confidence})
             else:
+                if len(decoded)!=len(work):
+                    raise RuntimeError("Word ASR returned fewer/more results than input clips")
                 for (row,_,confidence),hyp in zip(work,decoded):
                     stats=word_partial_credit(row.expected_text,hyp["word_transcript"])
                     records.append({"uid":row.uid,"word_status":"VALID",
                         "word_segment_source":"selected_response_v1",
                         "word_localization_confidence":confidence,**hyp,**stats})
-        # Save even when all clips fail; never silently discard failures.
-        tmp=pd.concat([old,pd.DataFrame(records)],ignore_index=True)
-        if tmp.uid.duplicated().any():raise RuntimeError("Repeated Word ASR UID")
-        _atomic_parquet(tmp,out)
+        # Incremental checkpoints: the old implementation rewrote all already
+        # completed rows after EVERY batch (quadratic Drive I/O).
+        # Persist in bounded groups, then reset the in-memory buffer.
+        if (batch_num+1)%checkpoint_batches==0 or batch_num+1==total_batches:
+            new=pd.concat([old,pd.DataFrame(records)],ignore_index=True)
+            if new.uid.duplicated().any():raise RuntimeError("Repeated Word ASR UID")
+            _atomic_parquet(new,out)
+            old=new
+            records.clear()
     if not out.exists():_atomic_parquet(old,out)
     final=pd.read_parquet(out)
     return {"n_completed":len(final),
