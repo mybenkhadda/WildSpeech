@@ -5,6 +5,7 @@ TAR-or-directory decoding, voice activity, shard tensors and restart behavior.
 """
 from __future__ import annotations
 from pathlib import Path
+import pytest
 import numpy as np
 import pandas as pd
 import soundfile as sf
@@ -72,7 +73,8 @@ def test_extract_all_audio_once_resume_and_figures(tmp_path):
                   batch_size=2)
     backend=FakePhonetic()
     counts=extract(config,inventory,phone=backend,vad=FakeVAD(),
-                   shard_size=3,vad_method="energy")
+                   shard_size=3,vad_method="energy",
+                   staging_dir=tmp_path/"local_stage",profile_every=1)
     assert counts=={"expected":7,"accounted":7,"valid":7,"failed":0,"missing":0}
     assert backend.called>=4
     rows=load_features(config.output())
@@ -81,6 +83,9 @@ def test_extract_all_audio_once_resume_and_figures(tmp_path):
     assert rows.localization_confidence.notna().all()
     shard=list((config.output()/"shards").glob("*.npz"))
     assert len(shard)==3
+    assert not list((tmp_path/"local_stage").glob("*_phonetic.*"))
+    timing=pd.read_parquet(config.output()/"manifests"/"timing_profile_PRIVATE.parquet")
+    assert len(timing)==3 and "drive_upload" in timing
     with np.load(shard[0]) as z:
         assert any(k.startswith("posterior_") for k in z.files)
         assert any(k.startswith("hidden_6_") for k in z.files)
@@ -92,3 +97,26 @@ def test_extract_all_audio_once_resume_and_figures(tmp_path):
     assert result["clips_valid"]==7
     assert (config.output()/"figures"/"01_cache_coverage.png").is_file()
     assert (config.output()/"figures"/"06_grading_within_correctness.png").is_file()
+
+def test_cuda_oom_never_persists_as_a_failed_clip(tmp_path):
+    inventory,train,test=inventory_and_files(tmp_path)
+    config=Config(drive_root=str(tmp_path),output_root=str(tmp_path/"private"),
+                  train_audio_dir=str(train),test_audio_dir=str(test),
+                  mode="SCREEN",acknowledge_license_review=True,
+                  batch_size=2)
+
+    class OutOfMemoryPhonetic(FakePhonetic):
+        def infer_batch(self,waves):
+            raise RuntimeError("CUDA out of memory. Tried to allocate 1 GiB")
+
+    with pytest.raises(RuntimeError,match="CUDA out of memory"):
+        extract(config,inventory,phone=OutOfMemoryPhonetic(),vad=FakeVAD(),
+                shard_size=3,vad_method="energy",
+                staging_dir=tmp_path/"stage",profile_every=1)
+    assert not list((config.output()/"shards").glob("*.parquet"))
+
+    # Retry does not treat transient CUDA OOM as a permanent clip failure.
+    result=extract(config,inventory,phone=FakePhonetic(),vad=FakeVAD(),
+                   shard_size=3,vad_method="energy",
+                   staging_dir=tmp_path/"stage",profile_every=1)
+    assert result["accounted"]==7 and result["failed"]==0
