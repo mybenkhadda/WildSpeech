@@ -308,3 +308,59 @@ MyDrive/WildSpeech_M87/speech/
   https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html
 
 Do not report official M8.7 numbers until the full private Drive run ends.
+
+## Fast Colab resume on a second Google account (November 2026)
+
+The master notebook selects `/content/drive/MyDrive/WildSpeech_M87_ACCESS`
+**when all six official metadata CSVs are available under**
+`WildSpeech_M87_ACCESS/WildSpeech`. Otherwise it selects the original
+`/content/drive/MyDrive` layout. The file-shortcut workspace must contain the
+frozen M8.4 phase0 and M8.6 FULL checkpoints, as well as both private TARs.
+The notebook no longer calls `locate_data_root(DRIVE)` without an explicit
+dataset override, preventing false selection of an unrelated same-named folder.
+
+In notebook section 2, review license and competition rules, then set
+`LICENSE_ACKNOWLEDGED=True`, `RUN_GPU_EXTRACT=True`, `MODE="FULL"` and
+`MAX_CLIPS=0`. Keep `RUN_WORD_ASR=False` until the separate Word runtime is
+ready, and `RUN_EVALUATION=False` until all 24,518 clips are accounted for.
+`BATCH_SIZE=2` is the FP32 T4-safe baseline; GPU batch-size tuning should
+be done by timing real examples and watching VRAM usage rather than assuming
+larger batches are faster.
+
+The extraction cell:
+
+- Pins the original model checkpoint SHA from
+  `OUTPUT/manifests/extraction.json` if it exists.
+- Optionally copies the two private TARs to `/content/wildspeech_audio` when
+  2 GiB of additional local free disk space remains after the copy. Do not
+  change the source archives or cache fingerprint.
+- Optionally stages each lossless compressed `.npz` and Parquet locally in
+  `/content/wildspeech_shard_stage`, then uploads both files to the *original*
+  private output, before it moves to the next shard. Compression is DEFLATE-1
+  for faster serialization, and arrays remain identical when read via NumPy.
+- Keeps individual completed shards atomic. Interrupting between shards
+  preserves the existing cached UIDs; partially uploaded files are not treated
+  as completed.
+- Records per-shard decode/VAD/quality/GPU/feature/serialization/upload
+  timings at `manifests/timing_profile_PRIVATE.parquet`.
+- Bisections FP32 GPU batches when a CUDA OOM occurs, and does not mark
+  unrecovered CUDA OOM as a permanently FAILED audio clip.
+- Allows partial **descriptive** feature EDA, but the FULL R² evaluation and
+  submission gates still demand complete frozen-split inputs.
+
+A 189-shard resume is not a 0-shard restart. The number of *pending* shards
+depends on whether the previous shard was fully committed before interruption.
+For example, 189 `48`-clip shards account for 9,072 clips, leaving
+15,446 clips and 322 additional full/partial shards.
+
+**Throughput caveat:** The workload is sorted by clip duration, and later
+shards often contain longer and more expensive recordings. The T4 may remain
+GPU bound even after NumPy CTC vectorization and local compression; do not
+claim an end-to-end speedup without checking the logged profile. Local
+staging uses temporary Colab disk and must be recreated after a runtime
+reset; the private Google Drive output is persistent.
+
+The optional Word ASR now checkpoints every 8 inference batches instead of
+rewriting the cumulative output file after each batch. Lost work on interruption
+is bounded by the checkpoint interval and automatically recomputed on resume.
+No private audio is uploaded to external inference services.
