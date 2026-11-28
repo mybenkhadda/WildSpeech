@@ -6,7 +6,7 @@ Each completed shard is atomic; on restart its clip IDs are reused without
 decoding. Posterior and pooled WavLM tensors are stored in compressed shards.
 """
 from __future__ import annotations
-import json,hashlib,os,time,traceback
+import json,hashlib,os,time,traceback,shutil,zipfile,tempfile
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -25,10 +25,30 @@ def _atomic_parquet(frame,path):
     frame.to_parquet(tmp,index=False);os.replace(tmp,p)
 
 def _atomic_npz(path,arrays):
+    """Standard .npz with fast lossless DEFLATE-1, same tensors as before."""
     p=Path(path);p.parent.mkdir(parents=True,exist_ok=True)
     tmp=p.with_name(p.name+".partial")
-    with tmp.open("wb") as fp:np.savez_compressed(fp,**arrays)
+    with zipfile.ZipFile(tmp,"w",compression=zipfile.ZIP_DEFLATED,
+                         compresslevel=1,allowZip64=True) as archive:
+        for name,arr in arrays.items():
+            with archive.open(name+".npy","w",force_zip64=True) as out:
+                np.lib.format.write_array(out,np.asanyarray(arr),allow_pickle=False)
     os.replace(tmp,p)
+
+def _copy_atomic(local,destination):
+    """Upload completed local shard to Drive, then publish by atomic rename."""
+    local=Path(local);destination=Path(destination)
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    temporary=destination.with_name(destination.name+".partial")
+    with local.open("rb") as source, temporary.open("wb") as sink:
+        shutil.copyfileobj(source,sink,length=16*1024*1024)
+    if temporary.stat().st_size!=local.stat().st_size:
+        raise IOError("Truncated staging upload: "+str(destination))
+    os.replace(temporary,destination)
+
+def _is_cuda_oom(exc):
+    msg=str(exc).lower()
+    return ("out of memory" in msg and ("cuda" in msg or "gpu" in msg))
 
 def _fixed_projection(v,layer,n=24):
     """Deterministic, NOT learned from train/test; full embedding also cached."""
@@ -86,28 +106,43 @@ def _load_existing(root):
         if not arrayfile.is_file():raise RuntimeError(f"Missing frame tensors for {file}")
     return seen
 
-def _run_slice(rows,sources,phone,vad,registry,target_map):
+def _run_slice(rows,sources,phone,vad,registry,target_map,timings=None):
     work=[];out=[];tensors={}
+    def add(key,seconds):
+        if timings is not None:timings[key]=timings.get(key,0.)+seconds
     for row in rows:
         try:
+            tick=time.perf_counter()
             wave,sr,audio_sha,original_sr=sources[row.split].decode(row.filename)
+            add("decode",time.perf_counter()-tick)
+            tick=time.perf_counter()
             spans=vad.segments(wave,sr)
+            add("vad",time.perf_counter()-tick)
+            tick=time.perf_counter()
             q=quality(wave,sr)
+            add("quality",time.perf_counter()-tick)
             work.append((row,wave,spans,q,original_sr,audio_sha))
         except Exception as e:
+            if _is_cuda_oom(e):raise
             out.append({"uid":row.uid,"split":row.split,"filename":row.filename,
                         "subject_id":row.subject_id,"task":row.task,
                         "item_score":getattr(row,"item_score",np.nan),
                         "status":"FAILED","failure_stage":"DECODE_VAD",
                         "failure_reason":str(e)[:350]})
     if not work:return out,tensors
+    tick=time.perf_counter()
     try:preds=phone.infer_batch([r[1] for r in work])
     except Exception as exception:
-        # A bad single clip must not kill the other entries in its batch.
+        if _is_cuda_oom(exception):raise
+        # A corrupt clip should not suppress unrelated valid entries.
         preds=[]
         for sample in work:
             try:preds.append(phone.infer_one(sample[1]))
-            except Exception as e:preds.append(e)
+            except Exception as e:
+                if _is_cuda_oom(e):raise
+                preds.append(e)
+    add("inference",time.perf_counter()-tick)
+    tick=time.perf_counter()
     for i,(row,wave,spans,q,original_sr,audio_sha) in enumerate(work):
         pred=preds[i]
         if isinstance(pred,Exception):
@@ -126,14 +161,16 @@ def _run_slice(rows,sources,phone,vad,registry,target_map):
             for layer,vec in pred.hidden.items():
                 tensors["hidden_"+str(layer)+"_"+row.uid]=vec.astype(np.float16)
         except Exception as e:
+            if _is_cuda_oom(e):raise
             out.append({"uid":row.uid,"split":row.split,"filename":row.filename,
                         "subject_id":row.subject_id,"task":row.task,
                         "status":"FAILED","failure_stage":"FEATURES",
                         "failure_reason":str(e)[:350]})
+    add("features",time.perf_counter()-tick)
     return out,tensors
 
 def extract(config,inventory,phone=None,vad=None,shard_size=48,max_clips=0,
-            vad_method="silero"):
+            vad_method="silero",staging_dir=None,profile_every=4):
     config.validate()
     root=config.output();root.mkdir(parents=True,exist_ok=True)
     # Resolve the immutable MODEL revision *before* deciding whether a shard
@@ -173,19 +210,67 @@ def extract(config,inventory,phone=None,vad=None,shard_size=48,max_clips=0,
     existing=[int(p.stem.split("_")[0]) for p in shards_dir.glob("*.parquet")
               if p.stem.split("_")[0].isdigit()] if shards_dir.exists() else []
     start=max(existing,default=-1)+1
-    for begin in tqdm(range(0,len(todo),shard_size),desc="M87 private GPU shards"):
+    stage=Path(staging_dir).expanduser() if staging_dir else None
+    if stage is not None:
+        stage.mkdir(parents=True,exist_ok=True)
+        if stage.resolve()==shards_dir.resolve():
+            raise ValueError("Staging must be separate from final shard directory")
+    timeline=[]
+    total=len(todo)
+    bar=tqdm(range(0,total,shard_size),desc="M87 private GPU shards")
+    for begin in bar:
         subset=todo.iloc[begin:begin+shard_size]
-        rows=[];frames={}
+        rows=[];frames={};timer={}
+        shard_tick=time.perf_counter()
         for offset in range(0,len(subset),config.batch_size):
             batch=list(subset.iloc[offset:offset+config.batch_size].itertuples(index=False))
-            result,tensors=_run_slice(batch,sources,phone,vad,registry,target_map)
+            result,tensors=_run_slice(batch,sources,phone,vad,registry,target_map,timer)
             rows.extend(result);frames.update(tensors)
         if len(rows)!=len(subset) or set(r["uid"] for r in rows)!=set(subset.uid):
             raise RuntimeError("Missing/duplicate clip in GPU shard")
-        shard_num=start+counter;counter+=1
+        shard_num=start+counter
         base=shards_dir/f"{shard_num:05d}_phonetic"
-        _atomic_npz(base.with_suffix(".npz"),frames)
-        _atomic_parquet(pd.DataFrame(rows),base.with_suffix(".parquet"))
+        tick=time.perf_counter()
+        if stage is None:
+            _atomic_npz(base.with_suffix(".npz"),frames)
+            _atomic_parquet(pd.DataFrame(rows),base.with_suffix(".parquet"))
+            timer["serialization_and_drive"]=time.perf_counter()-tick
+        else:
+            # Compress on ephemeral local disk, but persist EVERY completed
+            # shard to Drive before moving to the next one. On interruption,
+            # Drive always contains complete (NPZ, Parquet) pairs for resume.
+            local_base=stage/f"{shard_num:05d}_phonetic"
+            _atomic_npz(local_base.with_suffix(".npz"),frames)
+            _atomic_parquet(pd.DataFrame(rows),local_base.with_suffix(".parquet"))
+            timer["serialization"]=time.perf_counter()-tick
+            tick=time.perf_counter()
+            _copy_atomic(local_base.with_suffix(".npz"),base.with_suffix(".npz"))
+            _copy_atomic(local_base.with_suffix(".parquet"),base.with_suffix(".parquet"))
+            timer["drive_upload"]=time.perf_counter()-tick
+            local_base.with_suffix(".npz").unlink(missing_ok=True)
+            local_base.with_suffix(".parquet").unlink(missing_ok=True)
+        counter+=1
+        timer.update({"shard":shard_num,"clips":len(subset),
+                      "elapsed":time.perf_counter()-shard_tick,
+                      "failed":sum(r["status"]=="FAILED" for r in rows)})
+        timeline.append(timer)
+        bar.set_postfix({"s/shard":round(timer["elapsed"],1),
+                         "gpu":round(timer.get("inference",0.),1),
+                         "features":round(timer.get("features",0.),1)})
+        if profile_every and counter%int(profile_every)==0:
+            recent=pd.DataFrame(timeline[-int(profile_every):])
+            sums=recent.select_dtypes(include="number").sum()
+            detail=" | ".join(f"{c}={sums[c]:.1f}s" for c in
+                ("decode","vad","quality","inference","features",
+                 "serialization","drive_upload","serialization_and_drive")
+                if c in sums)
+            tqdm.write(f"[M87] {counter} new shards | {detail}")
+            # Small non-sensitive timing report, useful for cross-GPU reviews.
+            _atomic_parquet(pd.DataFrame(timeline),
+                root/"manifests"/"timing_profile_PRIVATE.parquet")
+    if timeline:
+        _atomic_parquet(pd.DataFrame(timeline),
+            root/"manifests"/"timing_profile_PRIVATE.parquet")
     return summarize_cache(root,inventory,strict=not bool(max_clips))
 
 def summarize_cache(root,inventory,strict=True):

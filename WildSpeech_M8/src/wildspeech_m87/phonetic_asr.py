@@ -112,6 +112,18 @@ class PhoneticASR:
                               len(x)/self.sr,self.revision)
 
     def infer_batch(self,waves):
-        if all(len(x)<=self.max_seconds*self.sr for x in waves):
-            return self._infer_short(waves)
-        return [self.infer_one(x) for x in waves]
+        """Adaptive FP32 batches: bisect CUDA OOM, never silently fail a clip."""
+        if not waves:return []
+        try:
+            if all(len(x)<=self.max_seconds*self.sr for x in waves):
+                return self._infer_short(waves)
+            return [self.infer_one(x) for x in waves]
+        except self.torch.cuda.OutOfMemoryError:
+            self.torch.cuda.empty_cache()
+            if len(waves)==1:
+                raise RuntimeError(
+                    "Single-clip CUDA OOM: stop without caching FAILED; "
+                    "reduce max input duration only in a fresh cache"
+                )
+            middle=len(waves)//2
+            return self.infer_batch(waves[:middle])+self.infer_batch(waves[middle:])
